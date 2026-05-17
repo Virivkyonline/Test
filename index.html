@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Platinum Lech Spa</title>
+  <link rel="icon" href="logo-gold.png">
+  <link rel="apple-touch-icon" href="logo-gold.png">
+  <meta name="theme-color" content="#050505">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    /* (rovnaký štýl ako v pôvodnej zákazníckej appke – zachovaný) */
+    :root{
+      --bg:#050505;
+      --bg-2:#090909;
+      --bg-3:#0f0e0d;
+      --panel:#111010;
+      --panel-2:#171514;
+      --card:#141212;
+      --card-2:#1b1714;
+      --line:rgba(255,214,102,.12);
+      --line-2:rgba(255,221,122,.22);
+      --gold:#f2c94c;
+      --gold-2:#ffd84d;
+      --gold-3:#fff1b2;
+      --gold-soft:#c79c34;
+      --text:#fff8ef;
+      --text-soft:#dbc38b;
+      --muted:#b9923d;
+      --muted-2:#7e652c;
+      --shadow:0 24px 60px rgba(0,0,0,.46);
+      --soft-shadow:0 12px 30px rgba(0,0,0,.28);
+      --radius-xl:34px;
+      --radius-lg:26px;
+      --radius-md:20px;
+      --radius-sm:16px;
+    }
+    *{ box-sizing:border-box; }
+    html, body{
+      margin:0;
+      min-height:100%;
+      font-family: Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 50% -10%, rgba(242,201,76,.14), transparent 24%),
+        radial-gradient(circle at 85% 12%, rgba(255,216,77,.05), transparent 18%),
+        radial-gradient(circle at 15% 22%, rgba(242,201,76,.04), transparent 16%),
+        linear-gradient(180deg, #0f0f0f 0%, #080808 45%, #040404 100%);
+      overflow-x:hidden;
+    }
+    body::before{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index:0;
+      background:
+        radial-gradient(circle at 10% 18%, rgba(255,255,255,.04) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 76% 12%, rgba(242,201,76,.04) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 32% 80%, rgba(255,216,77,.04) 0 1.2px, transparent 2px),
+        radial-gradient(circle at 66% 74%, rgba(255,255,255,.025) 0 1.4px, transparent 2.4px);
+      background-size: 180px 180px, 210px 210px, 170px 170px, 200px 200px;
+      opacity:.7;
+    }
+    .app{
+      max-width:430px;
+      margin:0 auto;
+      min-height:100vh;
+      position:relative;
+      z-index:1;
+      padding:14px 14px 28px;
+    }
+    .app::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        linear-gradient(90deg, transparent 0, rgba(242,201,76,.03) 6%, transparent 10%, transparent 90%, rgba(242,201,76,.03) 94%, transparent 100%);
+      opacity:.8;
+    }
+    @keyframes pulseGlow {
+      0%,100% { transform:scale(1); filter:brightness(1); }
+      50% { transform:scale(1.03); filter:brightness(1.06); }
+    }
+    @keyframes lightPulse {
+      0%,100% {
+        box-shadow:
+          inset 0 0 30px rgba(255,240,170,.24),
+          inset 0 0 56px rgba(242,201,76,.16),
+          0 0 0 1px rgba(255,221,90,.18),
+          0 0 28px rgba(255,221,90,.30),
+          0 0 64px rgba(242,201,76,.24),
+          0 12px 30px rgba(0,0,0,.28);
+      }
+      50% {
+        box-shadow:
+          inset 0 0 40px rgba(255,246,190,.34),
+          inset 0 0 82px rgba(242,201,76,.24),
+          0 0 0 1px rgba(255,229,120,.24),
+          0 0 44px rgba(255,221,90,.42),
+          0 0 92px rgba(242,201,76,.30),
+          0 14px 34px rgba(0,0,0,.30);
+      }
+    }
+    .topbar{
+      display:grid;
+      gap:12px;
+      padding:4px 2px 10px;
+      position:relative;
+      z-index:2;
+    }
+    .brandbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .brand-title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .brand-title strong{
+      font-size:17px;
+      letter-spacing:2.8px;
+      color:var(--gold-2);
+      font-weight:800;
+      text-shadow:
+        0 0 12px rgba(255,216,77,.10),
+        0 0 22px rgba(255,216,77,.04);
+    }
+    .brand-title span{
+      font-size:11px;
+      letter-spacing:8px;
+      color:var(--text-soft);
+      text-transform:uppercase;
+    }
+    .status-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      min-height:42px;
+      padding:0 16px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(28,24,19,.94), rgba(16,14,12,.98));
+      color:var(--text);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 8px 22px rgba(0,0,0,.22),
+        0 0 0 1px rgba(255,216,77,.03),
+        0 0 18px rgba(255,216,77,.06);
+      backdrop-filter:blur(10px);
+      font-size:13px;
+      white-space:nowrap;
+    }
+    .status-dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:var(--gold-2);
+      box-shadow:
+        0 0 10px rgba(255,216,77,.95),
+        0 0 24px rgba(255,216,77,.45);
+      flex:0 0 auto;
+    }
+    .nav-wrap{
+      display:grid;
+      grid-template-columns:repeat(4, 1fr);
+      gap:10px;
+      padding:5px;
+      background:
+        linear-gradient(180deg, rgba(23,21,20,.94), rgba(12,11,10,.98));
+      border:1px solid rgba(255,216,77,.10);
+      border-radius:26px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        inset 0 0 28px rgba(255,216,77,.02),
+        0 16px 34px rgba(0,0,0,.22);
+    }
+    .nav-btn{
+      min-width:0;
+      height:60px;
+      border:1px solid transparent;
+      border-radius:20px;
+      background:transparent;
+      color:var(--gold-2);
+      font-size:15px;
+      font-weight:800;
+      cursor:pointer;
+      transition:.22s ease;
+      text-shadow: 0 0 8px rgba(242,201,76,.06);
+    }
+    .nav-btn.active{
+      color:#fffef8;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,216,77,.28), transparent 66%),
+        linear-gradient(180deg, rgba(110,82,26,.96), rgba(42,31,16,.98));
+      border-color:rgba(255,216,77,.28);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.08),
+        inset 0 0 28px rgba(255,216,77,.10),
+        0 0 30px rgba(255,216,77,.14),
+        0 10px 26px rgba(0,0,0,.22);
+    }
+    .screen{ display:none; position:relative; z-index:1; }
+    .screen.active{ display:block; }
+    .panel{
+      width:100%;
+      margin:14px auto 0;
+      border-radius:var(--radius-xl);
+      padding:20px;
+      position:relative;
+      background:
+        linear-gradient(180deg, rgba(20,18,17,.97), rgba(11,10,10,.99));
+      border:1px solid var(--line);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        inset 0 0 0 1px rgba(255,255,255,.01),
+        var(--shadow);
+      overflow:hidden;
+    }
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(242,201,76,.10), transparent 24%),
+        linear-gradient(180deg, rgba(255,255,255,.018), transparent 15%);
+    }
+    .page-head{
+      position:relative;
+      z-index:1;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:18px;
+    }
+    .page-title{
+      margin:0;
+      font-size:28px;
+      font-weight:900;
+      color:var(--text);
+      letter-spacing:-.2px;
+      text-shadow:
+        0 0 10px rgba(255,255,255,.04),
+        0 0 18px rgba(242,201,76,.04);
+    }
+    .page-title.gold{
+      color:var(--gold-2);
+      text-shadow:
+        0 0 10px rgba(242,201,76,.12),
+        0 0 20px rgba(242,201,76,.06);
+    }
+    .page-sub{
+      font-size:13px;
+      color:var(--text-soft);
+      margin-top:4px;
+    }
+    .ghost-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:42px;
+      padding:0 16px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:var(--text);
+      background:
+        linear-gradient(180deg, rgba(30,26,22,.78), rgba(17,15,13,.92));
+      font-size:13px;
+      white-space:nowrap;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 0 16px rgba(255,216,77,.03);
+    }
+    .hero-card{
+      position:relative;
+      z-index:1;
+      border-radius:30px;
+      padding:24px 18px 22px;
+      margin-top:8px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(242,201,76,.12), transparent 42%),
+        linear-gradient(180deg, rgba(25,22,19,.98), rgba(13,12,11,.98));
+      border:1px solid rgba(255,216,77,.12);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        inset 0 0 26px rgba(255,216,77,.02),
+        0 22px 42px rgba(0,0,0,.22);
+    }
+    .temp-ring-wrap{
+      position:relative;
+      width:260px;
+      height:260px;
+      margin:12px auto 10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .temp-ring{
+      position:absolute;
+      inset:0;
+      border-radius:50%;
+      background:
+        radial-gradient(circle at center, rgba(0,0,0,.12) 0 48%, transparent 50%),
+        conic-gradient(from 215deg, rgba(242,201,76,.24), rgba(255,216,77,.98), rgba(242,201,76,.22));
+      filter:
+        drop-shadow(0 0 20px rgba(255,216,77,.18))
+        drop-shadow(0 0 42px rgba(255,216,77,.12));
+      mask: radial-gradient(circle, transparent 0 57%, #000 60%);
+      -webkit-mask: radial-gradient(circle, transparent 0 57%, #000 60%);
+      opacity:.98;
+      animation: pulseGlow 4s ease-in-out infinite;
+    }
+    .temp-ring::before{
+      content:"";
+      position:absolute;
+      inset:10px;
+      border-radius:50%;
+      border:1px solid rgba(255,221,120,.18);
+      box-shadow:0 0 22px rgba(255,216,77,.10);
+    }
+    .temp-ring::after{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      border-radius:50%;
+      box-shadow:
+        0 0 28px rgba(255,221,120,.16),
+        0 0 70px rgba(255,216,77,.12);
+    }
+    .temp-core{
+      position:relative;
+      z-index:1;
+      width:194px;
+      height:194px;
+      border-radius:50%;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,221,120,.12), transparent 38%),
+        linear-gradient(180deg, rgba(28,24,21,.98), rgba(14,13,12,.99));
+      border:1px solid rgba(255,216,77,.12);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        inset 0 -18px 30px rgba(0,0,0,.20),
+        0 12px 32px rgba(0,0,0,.26);
+    }
+    .temp-caption{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:3px;
+      color:var(--text-soft);
+      margin-bottom:8px;
+    }
+    .home-temp{
+      text-align:center;
+      font-size:62px;
+      font-weight:900;
+      letter-spacing:-1px;
+      line-height:1;
+      margin:0;
+      color:var(--gold-2);
+      text-shadow:
+        0 0 14px rgba(255,216,77,.14),
+        0 0 28px rgba(255,216,77,.08);
+    }
+    .swirl{
+      text-align:center;
+      font-size:38px;
+      line-height:1;
+      margin:12px 0 0;
+      filter: drop-shadow(0 0 10px rgba(255,216,77,.14));
+    }
+    .home-mode{
+      text-align:center;
+      font-size:32px;
+      font-weight:900;
+      margin-top:16px;
+      color:var(--gold-2);
+      letter-spacing:-.2px;
+      text-shadow:
+        0 0 10px rgba(242,201,76,.10),
+        0 0 18px rgba(242,201,76,.05);
+    }
+    .home-range{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:40px;
+      padding:0 18px;
+      border-radius:999px;
+      border:1px solid rgba(255,216,77,.16);
+      background:
+        linear-gradient(180deg, rgba(70,51,18,.90), rgba(30,22,12,.98));
+      font-size:15px;
+      color:var(--gold-3);
+      margin:14px auto 0;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 0 14px rgba(255,216,77,.06);
+    }
+    .home-badges{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-top:20px;
+    }
+    .info-badge{
+      border-radius:22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      border:1px solid rgba(255,216,77,.10);
+      padding:14px 14px 13px;
+      min-height:82px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 8px 18px rgba(0,0,0,.08);
+    }
+    .info-badge-label{
+      font-size:12px;
+      color:var(--text-soft);
+      margin-bottom:8px;
+    }
+    .info-badge-value{
+      font-size:18px;
+      color:var(--text);
+      font-weight:800;
+      line-height:1.22;
+      word-break:break-word;
+    }
+    .quick-actions{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:10px;
+      margin-top:16px;
+    }
+    .quick-btn{
+      min-height:52px;
+      border-radius:18px;
+      border:1px solid rgba(255,216,77,.10);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      color:var(--gold-3);
+      font-size:15px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 6px 16px rgba(0,0,0,.08);
+      transition:.2s ease;
+    }
+    .section-title{
+      margin:6px 0 18px;
+      font-size:24px;
+      font-weight:900;
+      color:var(--gold-2);
+      text-align:center;
+      position:relative;
+      z-index:1;
+      letter-spacing:-.2px;
+      text-shadow:
+        0 0 10px rgba(242,201,76,.10),
+        0 0 18px rgba(242,201,76,.05);
+    }
+    .controls-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:14px;
+      justify-items:center;
+      align-items:start;
+      position:relative;
+      z-index:1;
+    }
+    .control-item{
+      width:110px;
+      max-width:110px;
+      text-align:center;
+      border-radius:26px;
+      padding:16px 8px 14px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.018));
+      border:1px solid rgba(255,216,77,.10);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.02),
+        0 12px 24px rgba(0,0,0,.12);
+      transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .control-item.control-active{
+      border-color:rgba(255,221,120,.22);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.04),
+        0 0 0 1px rgba(255,221,120,.06),
+        0 14px 28px rgba(0,0,0,.14),
+        0 0 22px rgba(255,216,77,.10);
+      transform:translateY(-1px);
+    }
+    .circle-btn{
+      width:82px;
+      height:82px;
+      border-radius:50%;
+      border:1px solid rgba(255,216,77,.10);
+      cursor:pointer;
+      margin:0 auto 11px;
+      color:var(--gold-2);
+      font-size:31px;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,.10), transparent 24%),
+        linear-gradient(180deg, #2a251f 0%, #191613 56%, #0f0e0d 100%);
+      box-shadow:
+        inset 0 12px 18px rgba(255,255,255,.04),
+        inset 0 -12px 18px rgba(0,0,0,.36),
+        0 8px 20px rgba(0,0,0,.20);
+      transition: transform .15s ease, box-shadow .25s ease, border-color .25s ease, background .25s ease;
+      appearance:none;
+      -webkit-appearance:none;
+    }
+    .circle-btn:active{ transform:scale(.97); }
+    .circle-btn.off{ opacity:.95; }
+    .circle-btn.waiting{ box-shadow:0 0 22px rgba(255,216,77,.20), inset 0 0 18px rgba(255,216,77,.10); }
+    .circle-btn.on,
+    .circle-btn.low,
+    .circle-btn.high{
+      background:
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,.22), transparent 24%),
+        radial-gradient(circle at center, rgba(255,216,77,.20), transparent 54%),
+        linear-gradient(180deg, #6b4d12 0%, #3b2a0d 48%, #1a1208 100%);
+      border-color:rgba(255,216,77,.28);
+      box-shadow:
+        inset 0 0 32px rgba(255,216,77,.24),
+        inset 0 0 56px rgba(242,201,76,.16),
+        0 0 0 1px rgba(255,216,77,.10),
+        0 0 28px rgba(255,216,77,.30),
+        0 0 56px rgba(255,216,77,.20),
+        0 12px 26px rgba(0,0,0,.24);
+      color:#fffef8;
+      animation:pulseGlow 2s ease-in-out infinite;
+    }
+    .circle-btn.light.on{
+      background:
+        radial-gradient(circle at 34% 28%, rgba(255,255,255,.30), transparent 24%),
+        radial-gradient(circle at center, rgba(255,245,170,.30), transparent 54%),
+        linear-gradient(180deg, #7b5814 0%, #4a330c 48%, #211507 100%);
+      border-color:rgba(255,221,90,.30);
+      color:#fffefb;
+      animation:lightPulse 1.6s ease-in-out infinite;
+    }
+    .control-label{
+      font-size:15px;
+      line-height:1.2;
+      color:var(--gold-2);
+      min-height:36px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      text-shadow: 0 0 8px rgba(242,201,76,.06);
+    }
+    .control-state{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:62px;
+      min-height:30px;
+      padding:0 12px;
+      border-radius:999px;
+      font-size:12px;
+      color:var(--gold-3);
+      margin-top:4px;
+      font-weight:800;
+      border:1px solid rgba(255,216,77,.10);
+      background:rgba(255,255,255,.04);
+      transition:background .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .control-state.state-waiting{
+      border-color:rgba(255,216,77,.16);
+      background:rgba(255,216,77,.055);
+      color:var(--text-soft);
+    }
+    .control-state.state-on{
+      background:
+        linear-gradient(180deg, rgba(255,216,77,.34), rgba(121,86,20,.32));
+      border-color:rgba(255,216,77,.24);
+      box-shadow:
+        0 0 18px rgba(255,216,77,.18),
+        inset 0 0 10px rgba(255,240,170,.08);
+      color:#fffef8;
+    }
+    .settings-stack{
+      position:relative;
+      z-index:1;
+    }
+    .settings-block{
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.018));
+      border:1px solid rgba(255,216,77,.10);
+      border-radius:26px;
+      padding:18px;
+      margin-bottom:16px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.02),
+        0 10px 24px rgba(0,0,0,.10);
+      transition:.2s ease;
+    }
+    .settings-label{
+      font-size:17px;
+      margin-bottom:12px;
+      color:var(--text);
+      font-weight:800;
+    }
+    .settings-value{
+      font-size:24px;
+      font-weight:900;
+      color:var(--gold-2);
+      margin-bottom:14px;
+    }
+    .small{
+      font-size:13px;
+      color:var(--text-soft);
+      white-space:pre-wrap;
+      word-break:break-word;
+      line-height:1.5;
+    }
+    .slider-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .slider-min,
+    .slider-max{
+      width:44px;
+      text-align:center;
+      color:var(--text-soft);
+      font-size:13px;
+      font-weight:800;
+    }
+    input[type="range"]{
+      flex:1;
+      accent-color:var(--gold-2);
+    }
+    .settings-btn,
+    .settings-btn-small,
+    .settings-btn-wide,
+    .settings-select{
+      border:1px solid rgba(255,216,77,.10);
+      border-radius:18px;
+      color:var(--gold-3);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 6px 18px rgba(0,0,0,.10);
+      transition:.2s ease;
+    }
+    .settings-btn:hover,
+    .settings-btn-small:hover,
+    .settings-btn-wide:hover{
+      border-color:rgba(255,216,77,.18);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 0 14px rgba(255,216,77,.05),
+        0 8px 20px rgba(0,0,0,.12);
+    }
+    .settings-btn{
+      min-height:54px;
+      padding:10px 14px;
+      font-size:15px;
+      font-weight:800;
+      width:100%;
+      cursor:pointer;
+    }
+    .settings-btn-small{
+      min-width:70px;
+      min-height:52px;
+      padding:8px 12px;
+      font-size:16px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .settings-btn-wide{
+      width:100%;
+      min-height:56px;
+      padding:10px 14px;
+      font-size:16px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .settings-select{
+      width:100%;
+      min-height:56px;
+      padding:10px 16px;
+      font-size:18px;
+      font-weight:800;
+      appearance:none;
+      -webkit-appearance:none;
+      -moz-appearance:none;
+      color:var(--text);
+    }
+    .settings-select option{ color:#000; }
+    .settings-btn.active,
+    .settings-btn-small.active,
+    .settings-btn-wide.active{
+      color:#fffdf8;
+      background:
+        radial-gradient(circle at top, rgba(255,216,77,.18), transparent 70%),
+        linear-gradient(180deg, rgba(84,64,29,.96), rgba(37,29,18,.98));
+      border-color:rgba(255,216,77,.22);
+      box-shadow:
+        inset 0 0 18px rgba(255,216,77,.08),
+        0 0 18px rgba(255,216,77,.10),
+        0 10px 24px rgba(0,0,0,.12);
+    }
+    .btn-grid-2{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    .logo-wrap{
+      text-align:center;
+      margin-top:22px;
+      position:relative;
+      z-index:1;
+    }
+    .brand-logo{
+      display:block;
+      width:min(100%, 220px);
+      height:auto;
+      margin:0 auto;
+      filter:
+        drop-shadow(0 0 10px rgba(255,216,77,.12))
+        drop-shadow(0 0 24px rgba(255,216,77,.06));
+      opacity:.98;
+    }
+    .message-box{
+      width:100%;
+      margin:14px auto 0;
+      background:
+        linear-gradient(180deg, rgba(22,18,16,.94), rgba(13,12,11,.97));
+      border:1px solid rgba(255,216,77,.08);
+      color:var(--text);
+      border-radius:22px;
+      padding:16px 16px;
+      font-size:14px;
+      min-height:58px;
+      white-space:pre-wrap;
+      position:relative;
+      z-index:1;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 10px 22px rgba(0,0,0,.12);
+    }
+    .setup-grid{
+      display:grid;
+      gap:16px;
+      position:relative;
+      z-index:1;
+    }
+    .setup-field{
+      display:grid;
+      gap:8px;
+    }
+    .setup-label{
+      font-size:15px;
+      color:var(--text);
+      font-weight:800;
+    }
+    .setup-input,
+    .setup-select{
+      width:100%;
+      min-height:56px;
+      padding:12px 16px;
+      border-radius:18px;
+      border:1px solid rgba(255,216,77,.10);
+      color:var(--text);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.03),
+        0 6px 18px rgba(0,0,0,.10);
+      font-size:16px;
+      outline:none;
+    }
+    .setup-input::placeholder{
+      color:var(--text-soft);
+    }
+    .setup-select option{
+      color:#000;
+    }
+    .setup-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    .mini-status{
+      margin-top:8px;
+      color:var(--text-soft);
+      font-size:12px;
+      line-height:1.35;
+    }
+    .home-badges.four{ grid-template-columns:1fr 1fr; }
+    .btn-note{ margin-top:10px; font-size:13px; color:var(--text-soft); line-height:1.45; }
+    .readonly-btn{ cursor:default!important; opacity:.76; }
+    .readonly-btn:active{ transform:none!important; }
+    .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; }
+    .status-dot.online{ background:#7dffb2; box-shadow:0 0 10px rgba(125,255,178,.95),0 0 24px rgba(125,255,178,.45); }
+    .status-dot.waiting{ background:var(--gold-2); box-shadow:0 0 10px rgba(255,216,77,.95),0 0 24px rgba(255,216,77,.45); }
+    .ghost-chip.online{
+      color:#06170c !important;
+      border-color:rgba(125,255,178,.72) !important;
+      background:linear-gradient(180deg, rgba(125,255,178,.95), rgba(32,180,94,.86)) !important;
+      box-shadow:0 0 18px rgba(125,255,178,.65),0 0 34px rgba(32,180,94,.35),inset 0 1px 0 rgba(255,255,255,.25) !important;
+      text-shadow:none !important;
+    }
+    @media (max-width:380px){
+      .home-temp{ font-size:50px; }
+      .temp-ring-wrap{ width:228px; height:228px; }
+      .temp-core{ width:176px; height:176px; }
+      .circle-btn{ width:72px; height:72px; font-size:28px; }
+      .control-label{ font-size:14px; }
+      .page-title{ font-size:24px; }
+      .brand-logo{ width:min(100%, 190px); }
+      .nav-btn{ font-size:13px; }
+      .control-item{ width:95px; max-width:95px; }
+    }
+    .hidden{ display:none !important; }
+  
+
+    /* PLATINUM LECH FIRE AURORA override – farby podľa referencie: čierna, žeravá oranžová, zlato, iskry */
+    :root{
+      --bg:#030100;
+      --bg-2:#090301;
+      --bg-3:#150604;
+      --panel:#100604;
+      --panel-2:#1a0904;
+      --card:#160804;
+      --card-2:#240d05;
+      --line:rgba(255,170,28,.42);
+      --line-2:rgba(255,74,18,.42);
+      --gold:#ffd447;
+      --gold-2:#ffe76f;
+      --gold-3:#fff4b6;
+      --gold-soft:#ff9d16;
+      --text:#fffaf0;
+      --text-soft:#ffd99a;
+      --muted:#ffb34a;
+      --muted-2:#9b4b16;
+      --fire-yellow:#fff160;
+      --fire-gold:#ffd447;
+      --fire-orange:#ff8a18;
+      --fire-deep:#ff3d10;
+      --fire-red:#a31608;
+      --ember:#ff641a;
+      --smoke:#140503;
+      --shadow:0 30px 90px rgba(0,0,0,.72),0 0 70px rgba(255,92,18,.22);
+      --soft-shadow:0 18px 46px rgba(0,0,0,.46),0 0 32px rgba(255,138,24,.18);
+    }
+
+    html, body{
+      background:
+        radial-gradient(circle at 18% -8%, rgba(255,205,50,.30), transparent 24%),
+        radial-gradient(circle at 92% 8%, rgba(255,83,14,.30), transparent 22%),
+        radial-gradient(circle at 50% 36%, rgba(255,132,24,.15), transparent 36%),
+        linear-gradient(180deg,#050100 0%,#0b0301 40%,#020100 100%) !important;
+    }
+
+    body::before{
+      background:
+        radial-gradient(circle at 12% 16%, rgba(255,212,71,.95) 0 1.4px, transparent 2.6px),
+        radial-gradient(circle at 76% 20%, rgba(255,106,26,.85) 0 1.2px, transparent 2.5px),
+        radial-gradient(circle at 44% 70%, rgba(255,241,96,.70) 0 1px, transparent 2px),
+        linear-gradient(180deg, rgba(255,138,24,.08), transparent 50%) !important;
+      background-size: 120px 140px, 160px 180px, 90px 120px, 100% 100% !important;
+      opacity:.92 !important;
+      animation:emberFloat 8s linear infinite;
+      filter:drop-shadow(0 0 9px rgba(255,121,24,.55));
+    }
+
+    body::after{
+      content:"";
+      position:fixed;
+      left:-18%;
+      right:-18%;
+      bottom:-12%;
+      height:46vh;
+      pointer-events:none;
+      z-index:0;
+      background:
+        radial-gradient(ellipse at 20% 100%, rgba(255,241,96,.95), rgba(255,138,24,.45) 28%, transparent 58%),
+        radial-gradient(ellipse at 82% 86%, rgba(255,92,18,.62), transparent 50%),
+        linear-gradient(100deg, transparent 0 10%, rgba(255,221,80,.88) 18%, rgba(255,138,24,.56) 30%, rgba(160,20,6,.25) 48%, transparent 66%),
+        repeating-linear-gradient(104deg, transparent 0 11px, rgba(255,214,70,.22) 12px, transparent 16px);
+      filter:blur(12px) saturate(1.25) drop-shadow(0 0 42px rgba(255,112,18,.48));
+      opacity:.74;
+      transform:skewY(-5deg);
+      animation:fireWave 5.4s ease-in-out infinite;
+    }
+
+    .app::before{
+      background:
+        radial-gradient(ellipse at 50% -4%, rgba(255,228,92,.24), transparent 32%),
+        linear-gradient(90deg, rgba(255,212,71,.18) 0 1px, transparent 10%, transparent 90%, rgba(255,74,18,.22) calc(100% - 1px)),
+        radial-gradient(circle at 0% 28%, rgba(255,138,24,.17), transparent 28%),
+        radial-gradient(circle at 100% 22%, rgba(255,61,16,.17), transparent 28%) !important;
+      filter:drop-shadow(0 0 24px rgba(255,138,24,.42));
+      opacity:1 !important;
+    }
+
+    .brand-title strong,
+    .page-title.gold,
+    .section-title{
+      background:linear-gradient(90deg,#fff7bc 0%,#ffe76f 26%,#ff9b1b 58%,#ff3d10 100%);
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent !important;
+      text-shadow:none !important;
+      filter:drop-shadow(0 0 10px rgba(255,230,103,.48)) drop-shadow(0 0 20px rgba(255,92,18,.30));
+    }
+
+    .brand-title span,
+    .page-sub,
+    .small,
+    .btn-note,
+    .mini-status,
+    .info-badge-label,
+    .temp-caption,
+    .setup-label{
+      color:rgba(255,217,154,.92) !important;
+    }
+
+    .panel,.hero-card,.settings-block,.control-item,.message-box,.nav-wrap,.status-chip,.info-badge{
+      border:1px solid rgba(255,176,38,.32) !important;
+      background:
+        linear-gradient(180deg, rgba(33,11,5,.90), rgba(7,2,1,.97)) padding-box,
+        linear-gradient(135deg, rgba(255,241,96,.80), rgba(255,138,24,.58), rgba(255,61,16,.46), rgba(255,214,71,.72)) border-box !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,245,190,.10),
+        inset 0 0 34px rgba(255,92,18,.055),
+        0 0 0 1px rgba(255,188,44,.08),
+        0 0 24px rgba(255,199,49,.16),
+        0 0 46px rgba(255,92,18,.20),
+        0 20px 56px rgba(0,0,0,.54) !important;
+      backdrop-filter: blur(12px) saturate(1.08);
+    }
+
+    .panel::before,.hero-card::before{
+      background:
+        radial-gradient(circle at 18% 0%, rgba(255,241,96,.18), transparent 32%),
+        radial-gradient(circle at 102% 10%, rgba(255,74,18,.22), transparent 30%),
+        linear-gradient(180deg, rgba(255,245,200,.035), transparent 24%) !important;
+    }
+
+    .nav-btn,.quick-btn,.settings-btn,.settings-btn-small,.settings-btn-wide,.setup-input,.setup-select,.settings-select,.ghost-chip,.home-range,.control-state{
+      border:1px solid rgba(255,166,31,.38) !important;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,218,84,.12), transparent 68%),
+        linear-gradient(180deg, rgba(48,18,7,.82), rgba(13,4,2,.94)) !important;
+      color:#fff9e8 !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,245,190,.08),
+        0 0 14px rgba(255,176,38,.16),
+        0 0 26px rgba(255,74,18,.10) !important;
+      text-shadow:0 0 9px rgba(255,220,120,.25) !important;
+    }
+
+    .nav-btn.active,.settings-btn.active,.settings-btn-small.active,.settings-btn-wide.active,.quick-btn:active,.ghost-chip,.home-range{
+      border-color:rgba(255,225,88,.74) !important;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(255,241,96,.52), transparent 52%),
+        radial-gradient(circle at 96% 58%, rgba(255,61,16,.48), transparent 56%),
+        linear-gradient(135deg, rgba(255,157,22,.62), rgba(164,38,8,.66), rgba(58,12,3,.92)) !important;
+      box-shadow:
+        inset 0 0 24px rgba(255,241,96,.16),
+        inset 0 0 38px rgba(255,61,16,.12),
+        0 0 20px rgba(255,230,103,.36),
+        0 0 42px rgba(255,138,24,.28),
+        0 0 50px rgba(255,61,16,.15) !important;
+    }
+
+    .temp-ring{
+      background:conic-gradient(from 210deg, #fff160, #ffd447, #ff8a18, #ff3d10, #6d1004, #ff8a18, #fff160) !important;
+      filter:drop-shadow(0 0 24px rgba(255,241,96,.55)) drop-shadow(0 0 52px rgba(255,138,24,.42)) drop-shadow(0 0 36px rgba(255,61,16,.32)) !important;
+      opacity:1 !important;
+      animation:fireRing 3.6s ease-in-out infinite !important;
+    }
+
+    .temp-ring::before{
+      border-color:rgba(255,228,92,.26) !important;
+      box-shadow:0 0 22px rgba(255,202,55,.20) !important;
+    }
+
+    .temp-core{
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,228,92,.18), transparent 40%),
+        radial-gradient(circle at 50% 105%, rgba(255,61,16,.17), transparent 48%),
+        linear-gradient(180deg, rgba(37,13,6,.96), rgba(7,2,1,.99)) !important;
+      border-color:rgba(255,199,49,.36) !important;
+      box-shadow:
+        inset 0 0 30px rgba(255,138,24,.13),
+        inset 0 -22px 38px rgba(0,0,0,.34),
+        0 0 40px rgba(255,138,24,.22) !important;
+    }
+
+    .home-temp,.settings-value,.control-label,.info-badge-value{
+      color:#fff4b6 !important;
+      text-shadow:0 0 8px rgba(255,241,96,.52),0 0 20px rgba(255,138,24,.28),0 0 34px rgba(255,61,16,.16) !important;
+    }
+
+    .circle-btn{
+      border:1px solid rgba(255,166,31,.42) !important;
+      background:
+        radial-gradient(circle at 35% 25%, rgba(255,248,207,.14), transparent 26%),
+        radial-gradient(circle at 50% 100%, rgba(255,92,18,.22), transparent 52%),
+        linear-gradient(180deg, #301007 0%, #180704 56%, #060100 100%) !important;
+      color:#ffd447 !important;
+      box-shadow:
+        inset 0 10px 18px rgba(255,245,190,.05),
+        inset 0 -18px 26px rgba(0,0,0,.48),
+        0 0 17px rgba(255,176,38,.20),
+        0 0 32px rgba(255,74,18,.12) !important;
+    }
+
+    .circle-btn.on,.circle-btn.low,.circle-btn.high,.circle-btn.waiting{
+      color:#fffef6 !important;
+      background:
+        radial-gradient(circle at 33% 24%, rgba(255,255,230,.35), transparent 24%),
+        radial-gradient(circle at 18% 70%, rgba(255,241,96,.52), transparent 48%),
+        radial-gradient(circle at 100% 56%, rgba(255,61,16,.56), transparent 54%),
+        linear-gradient(135deg, #ffde40 0%, #ff8a18 36%, #ff3d10 72%, #6d1004 100%) !important;
+      border-color:rgba(255,248,207,.44) !important;
+      box-shadow:
+        inset 0 0 30px rgba(255,241,96,.35),
+        inset 0 0 54px rgba(255,61,16,.22),
+        0 0 12px rgba(255,255,230,.24),
+        0 0 32px rgba(255,241,96,.56),
+        0 0 60px rgba(255,138,24,.52),
+        0 0 78px rgba(255,61,16,.35) !important;
+      animation:fireButtonPulse 1.25s ease-in-out infinite !important;
+    }
+
+    .circle-btn.light.on{
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255,255,222,.95), transparent 20%),
+        radial-gradient(circle at 50% 50%, rgba(255,241,96,.60), transparent 46%),
+        linear-gradient(135deg,#fff160,#ffad1b 45%,#ff3d10) !important;
+      box-shadow:0 0 28px rgba(255,241,96,.82),0 0 72px rgba(255,138,24,.54), inset 0 0 44px rgba(255,246,180,.42) !important;
+    }
+
+    .control-item.control-active{
+      border-color:rgba(255,225,88,.42) !important;
+      transform:translateY(-2px);
+      box-shadow:
+        inset 0 1px 0 rgba(255,245,190,.10),
+        0 0 26px rgba(255,230,103,.18),
+        0 0 46px rgba(255,92,18,.18),
+        0 18px 42px rgba(0,0,0,.38) !important;
+    }
+
+    .control-state.state-on{
+      background:linear-gradient(90deg, rgba(255,241,96,.40), rgba(255,138,24,.40), rgba(255,61,16,.30)) !important;
+      box-shadow:0 0 18px rgba(255,230,103,.44),0 0 30px rgba(255,74,18,.25) !important;
+      border-color:rgba(255,225,88,.70) !important;
+      color:#fffaf0 !important;
+    }
+
+    .control-state.state-waiting{
+      color:#ffd99a !important;
+      border-color:rgba(255,138,24,.34) !important;
+      background:rgba(255,138,24,.07) !important;
+    }
+
+    input[type="range"]{
+      accent-color:#ffd447 !important;
+      filter:drop-shadow(0 0 9px rgba(255,212,71,.72));
+    }
+
+    .status-dot.online{
+      background:#fff160 !important;
+      box-shadow:0 0 10px rgba(255,241,96,1),0 0 30px rgba(255,138,24,.72),0 0 52px rgba(255,61,16,.36) !important;
+    }
+    .status-dot.waiting{
+      background:#ff8a18 !important;
+      box-shadow:0 0 12px rgba(255,138,24,1),0 0 34px rgba(255,61,16,.60) !important;
+    }
+
+    .brand-logo{
+      filter:drop-shadow(0 0 12px rgba(255,230,103,.30)) drop-shadow(0 0 30px rgba(255,92,18,.22)) !important;
+    }
+
+    @keyframes fireButtonPulse{
+      0%,100%{transform:scale(1);filter:brightness(1) saturate(1.05)}
+      50%{transform:scale(1.04);filter:brightness(1.22) saturate(1.25)}
+    }
+    @keyframes fireRing{
+      0%,100%{transform:scale(1) rotate(0deg);filter:drop-shadow(0 0 24px rgba(255,241,96,.55)) drop-shadow(0 0 52px rgba(255,138,24,.42))}
+      50%{transform:scale(1.025) rotate(2deg);filter:drop-shadow(0 0 32px rgba(255,241,96,.72)) drop-shadow(0 0 68px rgba(255,92,18,.48))}
+    }
+    @keyframes fireWave{
+      0%,100%{transform:skewY(-5deg) translateX(0) scale(1);opacity:.68}
+      50%{transform:skewY(-3deg) translateX(3%) scale(1.04);opacity:.82}
+    }
+    @keyframes emberFloat{
+      from{background-position:0 0,0 0,0 0,0 0}
+      to{background-position:24px -130px,-32px -180px,18px -110px,0 0}
+    }
+
+
+    /* FIRE LUXURY V2 – presnejšie podľa referencie: čierny luxus, medeno-oranžový dym, žlté vlnenie, iskry a jemné linky */
+    :root{
+      --ink-black:#010101;
+      --warm-black:#050402;
+      --deep-brown:#240e07;
+      --burnt-brown:#441209;
+      --ember-brown:#6d180b;
+      --dark-copper:#823014;
+      --ember-red:#b33910;
+      --hot-copper:#c14d14;
+      --fire-orange:#dc701b;
+      --lux-orange:#ed9623;
+      --sun-gold:#f8d53b;
+      --pale-gold:#fff39a;
+      --cream:#fff7d7;
+      --line:rgba(248,213,59,.38);
+      --line-2:rgba(237,150,35,.44);
+      --gold:#f8d53b;
+      --gold-2:#ffe66a;
+      --gold-3:#fff7d7;
+      --gold-soft:#ed9623;
+      --text:#fff8e9;
+      --text-soft:#ffd28d;
+      --panel:#100503;
+      --card:#160704;
+      --shadow:0 34px 100px rgba(0,0,0,.78),0 0 80px rgba(193,77,20,.24);
+    }
+
+    html,body{
+      background:
+        radial-gradient(ellipse at 18% 72%, rgba(248,213,59,.13), transparent 28%),
+        radial-gradient(ellipse at 72% 51%, rgba(193,77,20,.20), transparent 35%),
+        radial-gradient(ellipse at 92% 39%, rgba(237,150,35,.18), transparent 28%),
+        radial-gradient(ellipse at 36% 4%, rgba(68,18,9,.72), transparent 38%),
+        linear-gradient(180deg,#010101 0%,#050402 33%,#130602 68%,#010101 100%) !important;
+    }
+
+    body::before{
+      background:
+        radial-gradient(circle at 13% 31%, rgba(248,213,59,.88) 0 1.1px, transparent 2.7px),
+        radial-gradient(circle at 28% 20%, rgba(220,112,27,.70) 0 1.3px, transparent 2.8px),
+        radial-gradient(circle at 62% 37%, rgba(237,150,35,.72) 0 1px, transparent 2.5px),
+        radial-gradient(circle at 83% 26%, rgba(179,57,16,.78) 0 1.2px, transparent 2.7px),
+        radial-gradient(circle at 47% 78%, rgba(255,243,154,.55) 0 .9px, transparent 2.4px),
+        linear-gradient(180deg, rgba(237,150,35,.055), transparent 58%) !important;
+      background-size:132px 176px,178px 210px,118px 158px,194px 206px,92px 120px,100% 100% !important;
+      opacity:.78 !important;
+      animation:emberFloat 11s linear infinite !important;
+      filter:drop-shadow(0 0 8px rgba(237,150,35,.52));
+    }
+
+    body::after{
+      height:54vh !important;
+      bottom:-15% !important;
+      left:-28% !important;
+      right:-18% !important;
+      background:
+        radial-gradient(ellipse at 18% 88%, rgba(248,213,59,.98), rgba(237,150,35,.64) 22%, rgba(179,57,16,.20) 45%, transparent 62%),
+        radial-gradient(ellipse at 67% 67%, rgba(220,112,27,.44), rgba(68,18,9,.18) 36%, transparent 62%),
+        linear-gradient(101deg, transparent 0 9%, rgba(248,213,59,.92) 17%, rgba(237,150,35,.68) 26%, rgba(193,77,20,.42) 41%, rgba(68,18,9,.20) 58%, transparent 70%),
+        repeating-linear-gradient(100deg, transparent 0 9px, rgba(255,243,154,.20) 10px, rgba(237,150,35,.11) 12px, transparent 17px) !important;
+      opacity:.86 !important;
+      filter:blur(10px) saturate(1.36) contrast(1.08) drop-shadow(0 0 54px rgba(237,150,35,.58)) !important;
+      transform:skewY(-7deg) !important;
+      animation:fireWave 6.2s ease-in-out infinite !important;
+    }
+
+    .fire-atmosphere{
+      position:fixed;
+      inset:0;
+      z-index:0;
+      pointer-events:none;
+      overflow:hidden;
+      mix-blend-mode:screen;
+    }
+    .fire-atmosphere::before{
+      content:"";
+      position:absolute;
+      left:-22%;
+      right:-20%;
+      top:29%;
+      height:39vh;
+      background:
+        radial-gradient(ellipse at 21% 72%, rgba(248,213,59,.64), transparent 24%),
+        radial-gradient(ellipse at 54% 58%, rgba(237,150,35,.38), transparent 30%),
+        radial-gradient(ellipse at 83% 41%, rgba(179,57,16,.32), transparent 28%),
+        repeating-linear-gradient(4deg, transparent 0 8px, rgba(255,243,154,.16) 9px, rgba(237,150,35,.08) 11px, transparent 14px);
+      clip-path:polygon(0 58%,8% 43%,18% 53%,31% 34%,45% 48%,57% 30%,70% 43%,84% 20%,100% 31%,100% 90%,0 100%);
+      filter:blur(7px) drop-shadow(0 0 36px rgba(248,213,59,.38)) drop-shadow(0 0 55px rgba(237,150,35,.30));
+      opacity:.74;
+      animation:luxWaveDrift 7.4s ease-in-out infinite;
+    }
+    .fire-atmosphere::after{
+      content:"";
+      position:absolute;
+      right:-11%;
+      top:37%;
+      width:63%;
+      height:33%;
+      opacity:.54;
+      background:
+        radial-gradient(ellipse at 74% 47%, rgba(248,213,59,.18), transparent 28%),
+        repeating-radial-gradient(ellipse at 78% 51%, rgba(255,243,154,.22) 0 1px, transparent 2px 7px),
+        repeating-linear-gradient(172deg, transparent 0 7px, rgba(255,210,105,.12) 8px, transparent 10px);
+      mask-image:linear-gradient(90deg,transparent 0%,#000 24%,#000 88%,transparent 100%);
+      -webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 24%,#000 88%,transparent 100%);
+      filter:blur(.35px) drop-shadow(0 0 10px rgba(248,213,59,.24));
+      transform:skewY(-8deg);
+      animation:meshBreathe 4.8s ease-in-out infinite;
+    }
+    .fire-atmosphere span{
+      position:absolute;
+      width:3px;height:9px;border-radius:999px;
+      background:linear-gradient(180deg,#fff7d7,#f8d53b 40%,#dc701b 100%);
+      box-shadow:0 0 9px rgba(248,213,59,.86),0 0 20px rgba(237,150,35,.48);
+      opacity:.86;
+      transform:rotate(72deg);
+      animation:singleEmber 5s linear infinite;
+    }
+    .fire-atmosphere span:nth-child(1){left:12%;top:41%;animation-duration:6.2s;animation-delay:-1s}
+    .fire-atmosphere span:nth-child(2){left:27%;top:34%;animation-duration:7.3s;animation-delay:-3s}
+    .fire-atmosphere span:nth-child(3){left:48%;top:46%;animation-duration:5.8s;animation-delay:-2.4s}
+    .fire-atmosphere span:nth-child(4){left:68%;top:32%;animation-duration:6.7s;animation-delay:-4s}
+    .fire-atmosphere span:nth-child(5){left:83%;top:39%;animation-duration:5.2s;animation-delay:-.7s}
+    .fire-atmosphere span:nth-child(6){left:73%;top:57%;animation-duration:8s;animation-delay:-5s}
+
+    .app{
+      isolation:isolate;
+    }
+    .topbar,.screen,.message-box{position:relative;z-index:2;}
+
+    .panel,.hero-card,.settings-block,.control-item,.message-box,.nav-wrap,.status-chip,.info-badge{
+      border:1px solid rgba(248,213,59,.30) !important;
+      background:
+        linear-gradient(180deg, rgba(36,14,7,.87), rgba(5,4,2,.96) 68%, rgba(1,1,1,.98)) padding-box,
+        linear-gradient(135deg, rgba(255,243,154,.80) 0%, rgba(237,150,35,.66) 33%, rgba(193,77,20,.46) 58%, rgba(248,213,59,.64) 100%) border-box !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,247,215,.11),
+        inset 0 0 34px rgba(220,112,27,.075),
+        0 0 0 1px rgba(248,213,59,.055),
+        0 0 22px rgba(248,213,59,.14),
+        0 0 52px rgba(220,112,27,.22),
+        0 22px 62px rgba(0,0,0,.62) !important;
+    }
+    .panel::before,.hero-card::before{
+      background:
+        radial-gradient(ellipse at 22% 0%, rgba(248,213,59,.19), transparent 30%),
+        radial-gradient(ellipse at 91% 10%, rgba(193,77,20,.24), transparent 32%),
+        repeating-linear-gradient(101deg, transparent 0 15px, rgba(248,213,59,.035) 16px, transparent 18px) !important;
+    }
+    .panel::after,.hero-card::after,.settings-block::after{
+      content:"";
+      position:absolute;
+      inset:1px;
+      pointer-events:none;
+      border-radius:inherit;
+      background:
+        radial-gradient(circle at 16% 28%, rgba(255,247,215,.20) 0 .8px, transparent 2px),
+        radial-gradient(circle at 76% 18%, rgba(248,213,59,.17) 0 .8px, transparent 2.2px),
+        radial-gradient(circle at 61% 78%, rgba(237,150,35,.13) 0 .8px, transparent 2px),
+        linear-gradient(135deg, rgba(255,247,215,.045), transparent 28%, rgba(237,150,35,.038) 70%, transparent);
+      background-size:74px 90px,110px 104px,96px 116px,100% 100%;
+      opacity:.54;
+      z-index:0;
+    }
+    .panel>* , .hero-card>* , .settings-block>*{position:relative;z-index:1;}
+
+    .brand-title strong,.page-title.gold,.section-title{
+      background:linear-gradient(92deg,#fff7d7 0%,#f8d53b 28%,#ed9623 56%,#dc701b 76%,#fff39a 100%) !important;
+      -webkit-background-clip:text !important;
+      background-clip:text !important;
+      color:transparent !important;
+      filter:drop-shadow(0 0 8px rgba(255,247,215,.28)) drop-shadow(0 0 18px rgba(248,213,59,.34)) drop-shadow(0 0 30px rgba(220,112,27,.24)) !important;
+    }
+
+    .nav-btn.active,.settings-btn.active,.settings-btn-small.active,.settings-btn-wide.active,.quick-btn:active,.ghost-chip,.home-range{
+      background:
+        radial-gradient(ellipse at 14% 0%, rgba(255,247,215,.42), transparent 38%),
+        radial-gradient(ellipse at 50% 0%, rgba(248,213,59,.36), transparent 52%),
+        radial-gradient(ellipse at 94% 64%, rgba(179,57,16,.48), transparent 56%),
+        linear-gradient(135deg, rgba(237,150,35,.62), rgba(130,48,20,.78) 48%, rgba(36,14,7,.94)) !important;
+      box-shadow:
+        inset 0 0 22px rgba(248,213,59,.20),
+        inset 0 0 42px rgba(179,57,16,.16),
+        0 0 24px rgba(248,213,59,.28),
+        0 0 52px rgba(220,112,27,.26) !important;
+    }
+
+    .temp-ring{
+      background:conic-gradient(from 222deg,#f8d53b 0deg,#fff39a 34deg,#ed9623 95deg,#c14d14 151deg,#441209 212deg,#dc701b 278deg,#f8d53b 360deg) !important;
+      filter:drop-shadow(0 0 26px rgba(248,213,59,.62)) drop-shadow(0 0 60px rgba(237,150,35,.44)) drop-shadow(0 0 34px rgba(193,77,20,.33)) !important;
+    }
+    .temp-ring::after{
+      box-shadow:0 0 34px rgba(248,213,59,.22),0 0 90px rgba(220,112,27,.24) !important;
+    }
+
+    .circle-btn{
+      background:
+        radial-gradient(circle at 34% 24%, rgba(255,247,215,.12), transparent 25%),
+        radial-gradient(circle at 46% 102%, rgba(193,77,20,.22), transparent 52%),
+        linear-gradient(180deg,#441209 0%,#240e07 44%,#050402 100%) !important;
+    }
+    .circle-btn.on,.circle-btn.low,.circle-btn.high,.circle-btn.waiting{
+      background:
+        radial-gradient(circle at 34% 22%, rgba(255,247,215,.42), transparent 23%),
+        radial-gradient(circle at 23% 72%, rgba(248,213,59,.64), transparent 44%),
+        radial-gradient(circle at 101% 54%, rgba(179,57,16,.62), transparent 54%),
+        linear-gradient(135deg,#f8d53b 0%,#ed9623 32%,#c14d14 67%,#441209 100%) !important;
+      box-shadow:
+        inset 0 0 30px rgba(255,243,154,.32),
+        inset 0 0 58px rgba(193,77,20,.27),
+        0 0 14px rgba(255,247,215,.24),
+        0 0 36px rgba(248,213,59,.62),
+        0 0 72px rgba(237,150,35,.50),
+        0 0 92px rgba(179,57,16,.34) !important;
+    }
+    .circle-btn.light.on{
+      background:
+        radial-gradient(circle at 50% 34%, rgba(255,255,230,.98), transparent 18%),
+        radial-gradient(circle at 50% 50%, rgba(248,213,59,.72), transparent 44%),
+        linear-gradient(135deg,#fff39a,#f8d53b 34%,#ed9623 60%,#b33910) !important;
+    }
+
+    @keyframes luxWaveDrift{
+      0%,100%{transform:translateX(-1.5%) translateY(0) skewY(-1deg);opacity:.62}
+      50%{transform:translateX(2.5%) translateY(-8px) skewY(1deg);opacity:.84}
+    }
+    @keyframes meshBreathe{
+      0%,100%{transform:skewY(-8deg) translateX(0);opacity:.42}
+      50%{transform:skewY(-6deg) translateX(-2%);opacity:.67}
+    }
+    @keyframes singleEmber{
+      0%{transform:translateY(18px) translateX(0) rotate(72deg);opacity:0}
+      14%{opacity:.88}
+      100%{transform:translateY(-190px) translateX(42px) rotate(95deg);opacity:0}
+    }
+
+
+    /* FIRE LUXURY V3 – úplne čierny základ ako prvá farba, až potom luxusné zlaté/oranžové detaily */
+    :root{
+      --ink-black:#000000;
+      --warm-black:#000000;
+      --deep-brown:#120502;
+      --burnt-brown:#2b0b03;
+      --ember-brown:#5a1305;
+      --dark-copper:#8b2d0b;
+      --ember-red:#b72a07;
+      --hot-copper:#df5a0b;
+      --fire-orange:#ff7a0d;
+      --lux-orange:#ff9d1c;
+      --sun-gold:#ffd93a;
+      --pale-gold:#fff5a3;
+      --cream:#fff9df;
+      --text:#fff9ee;
+      --text-soft:#ffd38a;
+      --panel:#000000;
+      --card:#000000;
+      --line:rgba(255,217,58,.34);
+      --line-2:rgba(255,122,13,.38);
+    }
+
+    html,body{
+      background:#000000 !important;
+      background-color:#000000 !important;
+    }
+
+    .app{
+      background:#000000 !important;
+    }
+
+    body::before{
+      background:
+        radial-gradient(circle at 14% 38%, rgba(255,245,163,.92) 0 .75px, transparent 2.2px),
+        radial-gradient(circle at 31% 26%, rgba(255,157,28,.72) 0 1px, transparent 2.6px),
+        radial-gradient(circle at 62% 41%, rgba(255,122,13,.66) 0 .9px, transparent 2.4px),
+        radial-gradient(circle at 83% 30%, rgba(183,42,7,.78) 0 1.05px, transparent 2.5px),
+        linear-gradient(180deg, transparent 0%, rgba(255,122,13,.035) 54%, transparent 100%) !important;
+      background-size:140px 190px,188px 224px,124px 168px,204px 220px,100% 100% !important;
+      opacity:.64 !important;
+      filter:drop-shadow(0 0 7px rgba(255,157,28,.42)) !important;
+    }
+
+    body::after{
+      bottom:-20% !important;
+      height:48vh !important;
+      background:
+        radial-gradient(ellipse at 16% 88%, rgba(255,245,163,.96), rgba(255,217,58,.72) 17%, rgba(255,122,13,.34) 37%, transparent 59%),
+        radial-gradient(ellipse at 68% 68%, rgba(255,122,13,.40), rgba(90,19,5,.15) 34%, transparent 62%),
+        linear-gradient(101deg, transparent 0 10%, rgba(255,217,58,.86) 18%, rgba(255,157,28,.61) 27%, rgba(223,90,11,.34) 42%, rgba(43,11,3,.13) 58%, transparent 71%),
+        repeating-linear-gradient(101deg, transparent 0 11px, rgba(255,245,163,.17) 12px, rgba(255,122,13,.08) 14px, transparent 20px) !important;
+      opacity:.76 !important;
+      filter:blur(11px) saturate(1.32) contrast(1.08) drop-shadow(0 0 46px rgba(255,122,13,.45)) !important;
+    }
+
+    .fire-atmosphere::before{
+      top:33% !important;
+      height:34vh !important;
+      background:
+        radial-gradient(ellipse at 21% 74%, rgba(255,217,58,.58), transparent 23%),
+        radial-gradient(ellipse at 53% 58%, rgba(255,122,13,.32), transparent 30%),
+        radial-gradient(ellipse at 83% 42%, rgba(183,42,7,.26), transparent 29%),
+        repeating-linear-gradient(4deg, transparent 0 9px, rgba(255,245,163,.12) 10px, rgba(255,157,28,.06) 12px, transparent 16px) !important;
+      opacity:.58 !important;
+      filter:blur(8px) drop-shadow(0 0 30px rgba(255,217,58,.25)) drop-shadow(0 0 48px rgba(255,122,13,.20)) !important;
+    }
+
+    .fire-atmosphere::after{
+      opacity:.47 !important;
+      background:
+        radial-gradient(ellipse at 76% 48%, rgba(255,217,58,.16), transparent 28%),
+        repeating-radial-gradient(ellipse at 78% 51%, rgba(255,245,163,.20) 0 1px, transparent 2px 7px),
+        repeating-linear-gradient(172deg, transparent 0 7px, rgba(255,210,105,.10) 8px, transparent 10px) !important;
+    }
+
+    .panel,.hero-card,.settings-block,.control-item,.message-box,.nav-wrap,.status-chip,.info-badge{
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.96), rgba(0,0,0,.985) 62%, rgba(0,0,0,1)) padding-box,
+        linear-gradient(135deg, rgba(255,245,163,.72) 0%, rgba(255,157,28,.62) 34%, rgba(183,42,7,.42) 58%, rgba(255,217,58,.56) 100%) border-box !important;
+      border:1px solid rgba(255,217,58,.26) !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,249,223,.085),
+        inset 0 0 30px rgba(255,122,13,.045),
+        0 0 0 1px rgba(255,217,58,.045),
+        0 0 18px rgba(255,217,58,.10),
+        0 0 42px rgba(255,122,13,.16),
+        0 24px 68px rgba(0,0,0,.82) !important;
+    }
+
+    .panel::before,.hero-card::before{
+      background:
+        radial-gradient(ellipse at 18% 0%, rgba(255,217,58,.13), transparent 27%),
+        radial-gradient(ellipse at 94% 8%, rgba(255,122,13,.12), transparent 32%),
+        linear-gradient(180deg, rgba(255,249,223,.018), transparent 18%) !important;
+    }
+
+    .nav-btn,.quick-btn,.settings-btn,.settings-btn-small,.settings-btn-wide,.setup-input,.setup-select,.settings-select,.ghost-chip,.home-range,.control-state{
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255,217,58,.07), transparent 62%),
+        linear-gradient(180deg, rgba(9,5,2,.92), rgba(0,0,0,.98)) !important;
+      border-color:rgba(255,217,58,.26) !important;
+      color:#fff7d7 !important;
+    }
+
+    .nav-btn.active,.settings-btn.active,.settings-btn-small.active,.settings-btn-wide.active,.quick-btn:active,.ghost-chip,.home-range{
+      background:
+        radial-gradient(ellipse at 15% 0%, rgba(255,249,223,.34), transparent 35%),
+        radial-gradient(ellipse at 54% 0%, rgba(255,217,58,.28), transparent 52%),
+        radial-gradient(ellipse at 100% 65%, rgba(183,42,7,.38), transparent 55%),
+        linear-gradient(135deg, rgba(255,157,28,.45), rgba(43,11,3,.66) 46%, rgba(0,0,0,.98)) !important;
+    }
+
+    .temp-core{
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,217,58,.09), transparent 41%),
+        linear-gradient(180deg, rgba(5,2,0,.98), rgba(0,0,0,1)) !important;
+      border-color:rgba(255,217,58,.25) !important;
+    }
+
+    .circle-btn{
+      background:
+        radial-gradient(circle at 34% 24%, rgba(255,249,223,.09), transparent 24%),
+        radial-gradient(circle at 52% 103%, rgba(255,122,13,.14), transparent 52%),
+        linear-gradient(180deg,#090402 0%,#020100 52%,#000000 100%) !important;
+      border-color:rgba(255,217,58,.26) !important;
+      color:#ffd93a !important;
+    }
+
+    .circle-btn.on,.circle-btn.low,.circle-btn.high,.circle-btn.waiting{
+      background:
+        radial-gradient(circle at 34% 22%, rgba(255,249,223,.36), transparent 23%),
+        radial-gradient(circle at 23% 72%, rgba(255,217,58,.56), transparent 44%),
+        radial-gradient(circle at 102% 55%, rgba(183,42,7,.52), transparent 54%),
+        linear-gradient(135deg,#ffd93a 0%,#ff9d1c 30%,#df5a0b 64%,#120502 100%) !important;
+    }
+
+
+
+  
+
+    /* FIRE LUXURY V4 – PRESNE PODĽA REFERENCIE: úplne prvý základ je čistá čierna #000000; oheň je iba spodná svetelná vrstva */
+    :root{
+      --bg:#000000;
+      --bg-2:#000000;
+      --bg-3:#000000;
+      --panel:#000000;
+      --panel-2:#000000;
+      --card:#000000;
+      --card-2:#000000;
+      --pure-black:#000000;
+      --smoke-black:#030100;
+      --deep-ember:#160501;
+      --ember-red:#7d1604;
+      --copper:#b33207;
+      --fire-orange:#ff6a00;
+      --amber:#ff9f13;
+      --gold:#ffd21f;
+      --hot-gold:#fff05a;
+      --white-gold:#fff8c4;
+      --text:#fff7e6;
+      --text-soft:#ffd28a;
+      --line:rgba(255,210,31,.34);
+      --line-2:rgba(255,106,0,.36);
+    }
+
+    html,
+    body{
+      background:#000000 !important;
+      background-color:#000000 !important;
+      background-image:none !important;
+    }
+    body{
+      color:var(--text) !important;
+    }
+    .app{
+      background:#000000 !important;
+      background-color:#000000 !important;
+      background-image:none !important;
+    }
+    .app::before{
+      background:none !important;
+      opacity:0 !important;
+    }
+
+    /* horná časť obrazovky ostáva čistá čierna ako na referenčnom obrázku */
+    body::before{
+      background:
+        radial-gradient(circle at 8% 43%, rgba(255,106,0,.35) 0 1.2px, transparent 3px),
+        radial-gradient(circle at 18% 39%, rgba(255,159,19,.55) 0 1px, transparent 2.8px),
+        radial-gradient(circle at 36% 37%, rgba(255,210,31,.36) 0 .9px, transparent 2.4px),
+        radial-gradient(circle at 59% 42%, rgba(255,106,0,.42) 0 1px, transparent 2.8px),
+        radial-gradient(circle at 81% 36%, rgba(255,159,19,.48) 0 1.15px, transparent 2.8px),
+        linear-gradient(180deg, transparent 0 34%, rgba(255,106,0,.025) 45%, transparent 63%) !important;
+      background-size:180px 220px,150px 190px,210px 250px,132px 176px,190px 230px,100% 100% !important;
+      opacity:.50 !important;
+      filter:drop-shadow(0 0 7px rgba(255,106,0,.28)) !important;
+      -webkit-mask-image:linear-gradient(180deg, transparent 0 28%, #000 36%, #000 78%, transparent 100%) !important;
+      mask-image:linear-gradient(180deg, transparent 0 28%, #000 36%, #000 78%, transparent 100%) !important;
+    }
+
+    body::after{
+      content:"";
+      position:fixed;
+      left:-22%;
+      right:-22%;
+      bottom:-18%;
+      height:52vh;
+      pointer-events:none;
+      z-index:0;
+      background:
+        radial-gradient(ellipse at 12% 86%, rgba(255,240,90,.98), rgba(255,159,19,.68) 16%, rgba(255,106,0,.33) 34%, transparent 58%),
+        radial-gradient(ellipse at 58% 64%, rgba(255,106,0,.48), rgba(125,22,4,.22) 31%, transparent 62%),
+        radial-gradient(ellipse at 92% 46%, rgba(255,159,19,.44), rgba(179,50,7,.22) 31%, transparent 58%),
+        linear-gradient(102deg, transparent 0 7%, rgba(255,240,90,.88) 15%, rgba(255,210,31,.82) 20%, rgba(255,159,19,.62) 30%, rgba(255,106,0,.36) 47%, rgba(22,5,1,.18) 63%, transparent 78%),
+        repeating-linear-gradient(101deg, transparent 0 8px, rgba(255,248,196,.22) 9px, rgba(255,210,31,.13) 11px, rgba(255,106,0,.07) 13px, transparent 18px) !important;
+      opacity:.86 !important;
+      filter:blur(9px) saturate(1.38) contrast(1.12) drop-shadow(0 0 55px rgba(255,106,0,.52)) !important;
+      transform:skewY(-7deg) !important;
+      animation:fireWave 6s ease-in-out infinite !important;
+    }
+
+    .fire-atmosphere{
+      mix-blend-mode:screen !important;
+      opacity:1 !important;
+    }
+    .fire-atmosphere::before{
+      left:-26% !important;
+      right:-24% !important;
+      top:38% !important;
+      height:31vh !important;
+      background:
+        radial-gradient(ellipse at 18% 72%, rgba(255,210,31,.62), transparent 23%),
+        radial-gradient(ellipse at 47% 61%, rgba(255,106,0,.35), transparent 31%),
+        radial-gradient(ellipse at 82% 43%, rgba(125,22,4,.32), transparent 28%),
+        repeating-linear-gradient(4deg, transparent 0 8px, rgba(255,248,196,.13) 9px, rgba(255,159,19,.08) 11px, transparent 15px) !important;
+      clip-path:polygon(0 63%,8% 49%,17% 58%,31% 36%,45% 52%,58% 30%,71% 46%,85% 21%,100% 33%,100% 90%,0 100%) !important;
+      opacity:.52 !important;
+      filter:blur(7px) drop-shadow(0 0 34px rgba(255,210,31,.22)) drop-shadow(0 0 56px rgba(255,106,0,.20)) !important;
+    }
+    .fire-atmosphere::after{
+      top:41% !important;
+      right:-10% !important;
+      width:64% !important;
+      height:28% !important;
+      opacity:.48 !important;
+      background:
+        radial-gradient(ellipse at 78% 45%, rgba(255,210,31,.15), transparent 30%),
+        repeating-radial-gradient(ellipse at 80% 50%, rgba(255,248,196,.20) 0 1px, transparent 2px 7px),
+        repeating-linear-gradient(172deg, transparent 0 7px, rgba(255,210,105,.11) 8px, transparent 10px) !important;
+      -webkit-mask-image:linear-gradient(90deg, transparent 0%, #000 22%, #000 90%, transparent 100%) !important;
+      mask-image:linear-gradient(90deg, transparent 0%, #000 22%, #000 90%, transparent 100%) !important;
+      filter:blur(.35px) drop-shadow(0 0 11px rgba(255,210,31,.22)) !important;
+    }
+    .fire-atmosphere span{
+      width:3px !important;
+      height:10px !important;
+      background:linear-gradient(180deg,#fff8c4,#ffd21f 45%,#ff6a00 100%) !important;
+      box-shadow:0 0 10px rgba(255,210,31,.90),0 0 22px rgba(255,106,0,.48) !important;
+      opacity:.82 !important;
+    }
+    .fire-atmosphere span:nth-child(1){left:7% !important;top:39% !important;}
+    .fire-atmosphere span:nth-child(2){left:21% !important;top:37% !important;}
+    .fire-atmosphere span:nth-child(3){left:43% !important;top:42% !important;}
+    .fire-atmosphere span:nth-child(4){left:64% !important;top:36% !important;}
+    .fire-atmosphere span:nth-child(5){left:84% !important;top:34% !important;}
+    .fire-atmosphere span:nth-child(6){left:75% !important;top:53% !important;}
+
+    .topbar,.screen,.message-box{position:relative;z-index:2 !important;}
+    .panel,.hero-card,.settings-block,.control-item,.message-box,.nav-wrap,.status-chip,.info-badge{
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.94), rgba(0,0,0,.985) 56%, rgba(0,0,0,1)) padding-box,
+        linear-gradient(135deg, rgba(255,248,196,.64) 0%, rgba(255,210,31,.52) 20%, rgba(255,106,0,.48) 52%, rgba(125,22,4,.40) 74%, rgba(255,210,31,.48) 100%) border-box !important;
+      border:1px solid rgba(255,210,31,.25) !important;
+      box-shadow:
+        inset 0 1px 0 rgba(255,248,196,.075),
+        inset 0 0 26px rgba(255,106,0,.035),
+        0 0 0 1px rgba(255,210,31,.04),
+        0 0 18px rgba(255,210,31,.09),
+        0 0 40px rgba(255,106,0,.14),
+        0 24px 70px rgba(0,0,0,.86) !important;
+    }
+    .panel::before,.hero-card::before{
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(255,210,31,.105), transparent 27%),
+        radial-gradient(ellipse at 96% 8%, rgba(255,106,0,.10), transparent 31%),
+        linear-gradient(180deg, rgba(255,248,196,.012), transparent 18%) !important;
+    }
+    .brand-title strong,.page-title.gold,.section-title{
+      background:linear-gradient(90deg,#fff8c4 0%,#ffd21f 23%,#ff9f13 48%,#ff6a00 70%,#fff05a 100%) !important;
+      -webkit-background-clip:text !important;
+      background-clip:text !important;
+      color:transparent !important;
+      filter:drop-shadow(0 0 7px rgba(255,210,31,.25)) drop-shadow(0 0 14px rgba(255,106,0,.18)) !important;
+    }
+    .nav-btn,.quick-btn,.settings-btn,.settings-btn-small,.settings-btn-wide,.setup-input,.setup-select,.settings-select,.ghost-chip,.home-range,.control-state{
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255,210,31,.055), transparent 62%),
+        linear-gradient(180deg, rgba(5,2,0,.95), rgba(0,0,0,.99)) !important;
+      border-color:rgba(255,210,31,.25) !important;
+      color:#fff4c2 !important;
+      box-shadow:inset 0 1px 0 rgba(255,248,196,.06),0 0 13px rgba(255,106,0,.08),0 9px 22px rgba(0,0,0,.34) !important;
+    }
+    .nav-btn.active,.settings-btn.active,.settings-btn-small.active,.settings-btn-wide.active,.quick-btn:active,.ghost-chip,.home-range{
+      background:
+        radial-gradient(ellipse at 13% 0%, rgba(255,248,196,.30), transparent 34%),
+        radial-gradient(ellipse at 56% 0%, rgba(255,210,31,.24), transparent 52%),
+        radial-gradient(ellipse at 100% 67%, rgba(255,106,0,.32), transparent 56%),
+        linear-gradient(135deg, rgba(255,159,19,.38), rgba(22,5,1,.62) 44%, rgba(0,0,0,.98)) !important;
+      box-shadow:inset 0 0 23px rgba(255,210,31,.085),0 0 20px rgba(255,210,31,.17),0 0 37px rgba(255,106,0,.17),0 11px 28px rgba(0,0,0,.42) !important;
+    }
+    .circle-btn{
+      background:
+        radial-gradient(circle at 34% 24%, rgba(255,248,196,.085), transparent 24%),
+        radial-gradient(circle at 52% 103%, rgba(255,106,0,.13), transparent 52%),
+        linear-gradient(180deg,#070301 0%,#020100 52%,#000000 100%) !important;
+      border-color:rgba(255,210,31,.26) !important;
+      color:#ffd21f !important;
+      box-shadow:inset 0 10px 18px rgba(255,248,196,.035),inset 0 -18px 26px rgba(0,0,0,.58),0 0 16px rgba(255,210,31,.10),0 0 28px rgba(255,106,0,.08),0 11px 24px rgba(0,0,0,.40) !important;
+    }
+    .circle-btn.on,.circle-btn.low,.circle-btn.high,.circle-btn.waiting{
+      background:
+        radial-gradient(circle at 34% 22%, rgba(255,248,196,.35), transparent 23%),
+        radial-gradient(circle at 24% 72%, rgba(255,210,31,.58), transparent 44%),
+        radial-gradient(circle at 104% 56%, rgba(255,106,0,.55), transparent 55%),
+        linear-gradient(135deg,#fff05a 0%,#ffd21f 17%,#ff9f13 37%,#ff6a00 65%,#160501 100%) !important;
+      border-color:rgba(255,248,196,.46) !important;
+      color:#fffdf1 !important;
+      box-shadow:inset 0 0 28px rgba(255,210,31,.32),inset 0 0 50px rgba(255,106,0,.20),0 0 13px rgba(255,248,196,.28),0 0 34px rgba(255,210,31,.55),0 0 62px rgba(255,106,0,.36),0 13px 29px rgba(0,0,0,.45) !important;
+    }
+    .circle-btn.light.on{
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255,248,196,.95), transparent 20%),
+        radial-gradient(circle at 50% 50%, rgba(255,210,31,.66), transparent 45%),
+        linear-gradient(135deg,#fff8c4,#ffd21f 35%,#ff6a00 100%) !important;
+      box-shadow:0 0 28px rgba(255,210,31,.80),0 0 72px rgba(255,106,0,.50),inset 0 0 46px rgba(255,248,196,.38) !important;
+    }
+
+  </style>
+
+
+<!-- FIX V5: čisté čierne zadné pozadie bez pohybujúcich fragmentov -->
+<style>
+  html,
+  body,
+  .app{
+    background:#000000 !important;
+    background-color:#000000 !important;
+    background-image:none !important;
+  }
+
+  body::before,
+  body::after,
+  .app::before,
+  .fire-atmosphere,
+  .fire-atmosphere::before,
+  .fire-atmosphere::after,
+  .fire-atmosphere span{
+    content:none !important;
+    display:none !important;
+    opacity:0 !important;
+    visibility:hidden !important;
+    background:none !important;
+    background-image:none !important;
+    animation:none !important;
+    filter:none !important;
+  }
+
+  .topbar,
+  .screen,
+  .message-box{
+    position:relative !important;
+    z-index:2 !important;
+  }
+</style>
+
+
+
+<!-- FIX V6: čistý teplotný kruh bez tenkého pásika pri °C -->
+<style>
+  /* odstráni tenkú vnútornú linku, ktorá prechádzala za textom °C a vyzerala ako biely pásik */
+  .temp-core{
+    border:0 !important;
+    outline:0 !important;
+    box-shadow:
+      inset 0 0 32px rgba(255,106,0,.055),
+      inset 0 -22px 38px rgba(0,0,0,.38),
+      0 0 34px rgba(255,106,0,.12) !important;
+  }
+
+  .temp-core::before,
+  .temp-core::after{
+    content:none !important;
+    display:none !important;
+  }
+
+  /* vonkajší prstenec necháva čistý, bez pomocnej kruhovej čiary vo vnútri */
+  .temp-ring::before{
+    content:none !important;
+    display:none !important;
+  }
+
+  .temp-ring{
+    border-radius:50% !important;
+    -webkit-mask:radial-gradient(circle, transparent 0 57.5%, #000 58.8%) !important;
+    mask:radial-gradient(circle, transparent 0 57.5%, #000 58.8%) !important;
+  }
+
+  .home-temp{
+    position:relative !important;
+    z-index:3 !important;
+  }
+</style>
+
+
+
+<!-- FIX V7: keď je MQTT online, indikátor svieti zeleno -->
+<style>
+  .status-dot.online{
+    background:#39ff88 !important;
+    box-shadow:
+      0 0 10px rgba(57,255,136,1),
+      0 0 26px rgba(57,255,136,.75),
+      0 0 52px rgba(57,255,136,.38) !important;
+  }
+
+  .status-chip.online,
+  #homeCloudChip.online{
+    border-color:rgba(57,255,136,.48) !important;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(57,255,136,.20), transparent 65%),
+      linear-gradient(180deg, rgba(8,36,20,.92), rgba(2,8,5,.98)) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(210,255,225,.12),
+      0 0 16px rgba(57,255,136,.28),
+      0 0 34px rgba(57,255,136,.16),
+      0 10px 24px rgba(0,0,0,.34) !important;
+    color:#eafff1 !important;
+  }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <div class="fire-atmosphere" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+  <div class="topbar">
+    <div class="brandbar">
+      <div class="brand-title">
+        <strong>PLATINUM LECH</strong>
+        <span>spa</span>
+      </div>
+      <div class="status-chip" id="statusChip">
+        <span class="status-dot waiting" id="statusDot"></span>
+        <span id="topStatusText">Čaká na MQTT</span>
+      </div>
+    </div>
+    <div class="nav-wrap">
+      <button class="nav-btn active" id="nav-home" onclick="showScreen('home')">Domov</button>
+      <button class="nav-btn" id="nav-controls" onclick="showScreen('controls')">Ovládanie</button>
+      <button class="nav-btn" id="nav-settings" onclick="showScreen('settings')">Nastavenia</button>
+      <button class="nav-btn hidden" id="nav-setup" onclick="showScreen('setup')">Setup</button>
+    </div>
+  </div>
+
+  <!-- Domov -->
+  <div id="homeScreen" class="screen active">
+    <div class="panel">
+      <div class="page-head"><div><h1 class="page-title gold">Domov</h1><div class="page-sub">Stav vašej vírivky</div></div><div class="ghost-chip" id="homeCloudChip">☁ Offline</div></div>
+      <div class="hero-card">
+        <div class="temp-ring-wrap"><div class="temp-ring"></div><div class="temp-core"><div class="temp-caption">Aktuálna teplota</div><div class="home-temp" id="homeTemp">--.-°C</div><div class="swirl">🌀</div></div></div>
+        <div class="home-mode" id="homeMode">--</div><div style="text-align:center;"><div class="home-range" id="homeRange">-- rozsah</div></div>
+        <div class="home-badges four">
+          <div class="info-badge"><div class="info-badge-label">Čas panelu</div><div class="info-badge-value" id="homeTime">Čas: --:--</div></div>
+          <div class="info-badge"><div class="info-badge-label">Nastavená teplota</div><div class="info-badge-value" id="homeSetTemp">--.-°C</div></div>
+          <div class="info-badge"><div class="info-badge-label">Obehové čerpadlo</div><div class="info-badge-value" id="homeCirc">Automatické</div></div>
+          <div class="info-badge"><div class="info-badge-label">SN modulu</div><div class="info-badge-value mono" id="homeSn">--</div></div>
+        </div>
+        <div class="quick-actions"><button class="quick-btn" onclick="showScreen('controls')">Ovládanie</button><button class="quick-btn" onclick="showScreen('settings')">Nastavenia</button><button class="quick-btn" onclick="connectMqtt()">Pripojiť</button></div>
+      </div>
+      <div class="logo-wrap"><img src="logo-gold.png" alt="Platinum Lech Spa" class="brand-logo" onclick="handleSecretSetupTap()"><div class="mini-status">www.virivkyonline.sk</div></div>
+    </div>
+  </div>
+
+  <!-- Ovládanie -->
+  <div id="controlsScreen" class="screen">
+    <div class="panel">
+      <div class="page-head"><div><h2 class="page-title gold">Ovládanie</h2><div class="page-sub">Rýchle prepínanie</div></div><div class="ghost-chip">Smart control</div></div>
+      <div class="section-title">Ovládacie prvky</div>
+      <div class="controls-grid">
+        <div class="control-item" id="item-pump1"><button id="btn-pump1" class="circle-btn off" onclick="sendCmd('pump1')">🌀</button><div class="control-label">Pumpa 1</div><div class="control-state state-waiting" id="lbl-pump1">Čakám na stav</div></div>
+        <div class="control-item" id="item-pump2"><button id="btn-pump2" class="circle-btn off" onclick="sendCmd('pump2')">🌀</button><div class="control-label">Pumpa 2</div><div class="control-state state-waiting" id="lbl-pump2">Čakám na stav</div></div>
+        <div class="control-item" id="item-pump3"><button id="btn-pump3" class="circle-btn off" onclick="sendCmd('pump3')">🌀</button><div class="control-label">Pumpa 3</div><div class="control-state state-waiting" id="lbl-pump3">Čakám na stav</div></div>
+        <div class="control-item" id="item-blower"><button id="btn-blower" class="circle-btn off" onclick="sendCmd('blower')">◌</button><div class="control-label">Blower</div><div class="control-state state-waiting" id="lbl-blower">Čakám na stav</div></div>
+        <div class="control-item" id="item-light"><button id="btn-light" class="circle-btn light off" onclick="sendCmd('light')">☼</button><div class="control-label">Svetlo</div><div class="control-state state-waiting" id="lbl-light">Čakám na stav</div></div>
+        <div class="control-item" id="item-circ"><button id="btn-circ" class="circle-btn readonly-btn off" type="button">↻</button><div class="control-label">Obeh</div><div class="control-state" id="lbl-circ">AUTO</div></div>
+      </div>
+      <div class="btn-note">Užívaj si relax naplno.</div>
+      <div class="logo-wrap"><img src="logo-gold.png" alt="Platinum Lech Spa" class="brand-logo" onclick="handleSecretSetupTap()"></div>
+    </div>
+  </div>
+
+  <!-- Nastavenia -->
+  <div id="settingsScreen" class="screen">
+    <div class="panel">
+      <div class="page-head"><div><h2 class="page-title gold">Nastavenia</h2><div class="page-sub">Teplota, čas a filtre</div></div><div class="ghost-chip">Panel</div></div>
+      <div class="settings-stack">
+        <div class="settings-block"><div class="settings-label">Nastavená teplota</div><div class="settings-value" id="settingsTempValue">--.-°C</div>
+          <div class="btn-grid-2" style="margin-bottom:12px;"><button id="rangeLowBtn" class="settings-btn" onclick="requestTempRange('low')">Nízky 10–37</button><button id="rangeHighBtn" class="settings-btn active" onclick="requestTempRange('high')">Vysoký 26.5–40</button></div>
+          <div class="slider-row"><div class="slider-min" id="tempMinLabel">26.5</div><input type="range" id="tempSlider" min="26.5" max="40" step="0.5" value="38" oninput="onTempSliderChange()" /><div class="slider-max" id="tempMaxLabel">40</div></div>
+          <div class="small" id="tempRangeText" style="margin-top:10px;">Vysoký rozsah</div>
+        </div>
+        <div class="settings-block"><div class="settings-label">Jednotky teploty</div><div class="btn-grid-2"><button id="unitCBtn" class="settings-btn-small" onclick="sendCmd('unitC')">°C</button><button id="unitFBtn" class="settings-btn-small" onclick="sendCmd('unitF')">°F</button></div></div>
+        <div class="settings-block"><div class="settings-label">Teplotný režim</div><div class="btn-grid-2"><button id="heatReadyBtn" class="settings-btn active" onclick="requestHeatMode('ready')">Pripravený</button><button id="heatRestBtn" class="settings-btn" onclick="requestHeatMode('rest')">Dovolenka</button></div><div class="mode-note">"Dovolenka-zohrieva iba ak beží filtračný cyklus"</div></div>
+        <div class="settings-block"><div class="settings-label">Čas panelu</div><div class="btn-grid-2"><select id="timeHour" class="settings-select"></select><select id="timeMinute" class="settings-select"></select></div><div class="btn-grid-2" style="margin-top:12px;"><button class="settings-btn" onclick="fillCurrentTime()">Čas telefónu</button><button class="settings-btn" onclick="saveSystemTime()">Uložiť čas</button></div></div>
+        <div class="settings-block"><div class="settings-label">Filtračný cyklus 1</div><div class="btn-grid-2"><select id="f1Hour" class="settings-select"></select><select id="f1Minute" class="settings-select"></select></div><div class="small">Dĺžka cyklu 1</div><div class="btn-grid-2"><select id="f1DurHour" class="settings-select"></select><select id="f1DurMinute" class="settings-select"></select></div></div>
+        <div class="settings-block"><div class="settings-label">Filtračný cyklus 2</div><div class="btn-grid-2" style="margin-bottom:12px;"><button id="f2off" class="settings-btn active" onclick="setF2(false)">Filter 2 OFF</button><button id="f2on" class="settings-btn" onclick="setF2(true)">Filter 2 ON</button></div><div class="btn-grid-2"><select id="f2Hour" class="settings-select"></select><select id="f2Minute" class="settings-select"></select></div><div class="small">Dĺžka cyklu 2</div><div class="btn-grid-2"><select id="f2DurHour" class="settings-select"></select><select id="f2DurMinute" class="settings-select"></select></div><div style="margin-top:12px;"><button class="settings-btn-wide" onclick="saveFilters()">Uložiť filtračné cykly</button></div></div>
+      </div>
+      <div class="logo-wrap"><img src="logo-gold.png" alt="Platinum Lech Spa" class="brand-logo" onclick="handleSecretSetupTap()"></div>
+    </div>
+  </div>
+
+  <!-- Servisné menu (MQTT nastavenie) – ZJEDNODUŠENÉ: stačí vyplniť SN a heslo -->
+  <div id="setupScreen" class="screen">
+    <div class="panel">
+      <div class="page-head"><div><h2 class="page-title gold">Nastavenie MQTT</h2><div class="page-sub">Zadajte SN modulu a heslo – ostatné sa doplní automaticky</div></div><div class="ghost-chip">Servis</div></div>
+      <div class="setup-grid">
+        <div class="settings-block">
+          <div class="setup-field"><div class="setup-label">SN modulu (Serial Number)</div><input id="mqttSn" class="setup-input mono" placeholder="napr. 02200325110700003183" oninput="autoFillTopics()"></div>
+          <div class="setup-field"><div class="setup-label">App heslo</div><input id="mqttPass" class="setup-input" type="password" placeholder="Heslo pre app_XXX účet"></div>
+          <!-- Skryté polia – automaticky generované -->
+          <input type="hidden" id="mqttBroker" value="">
+          <input type="hidden" id="mqttUser">
+          <input type="hidden" id="mqttRs">
+          <input type="hidden" id="mqttTx">
+          <input type="hidden" id="mqttCfg">
+          <div class="setup-actions"><button class="settings-btn" onclick="saveMqttSetup()">Uložiť</button><button class="settings-btn" onclick="connectMqtt()">Pripojiť</button></div>
+          <div class="mini-status">Po zadaní SN sa automaticky doplnia všetky topic-y a používateľské meno.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="message-box" id="messageBox">Vitajte. Najprv nastavte MQTT pripojenie (10× klik na logo).</div>
+</div>
+
+<script>
+'use strict';
+
+const DEFAULT_BROKER_WS = 'ws://195.20.241.46:8083';
+const SECRET_PIN = '780801';
+
+const COMMANDS = {
+  pump1: { label: 'Pumpa 1', hex: '7E 07 10 BF 11 04 00 6A 7E', buttonId: 'btn-pump1', labelId: 'lbl-pump1' },
+  pump2: { label: 'Pumpa 2', hex: '7E 07 10 BF 11 05 00 7F 7E', buttonId: 'btn-pump2', labelId: 'lbl-pump2' },
+  pump3: { label: 'Pumpa 3', hex: '7E 07 0A BF 11 06 00 AF 7E', buttonId: 'btn-pump3', labelId: 'lbl-pump3' },
+  blower: { label: 'Blower', hex: '7E 07 10 BF 11 0C 00 C2 7E', buttonId: 'btn-blower', labelId: 'lbl-blower' },
+  light: { label: 'Svetlo', hex: '7E 07 10 BF 11 91 00 CA 7E', buttonId: 'btn-light', labelId: 'lbl-light' },
+  unitC: { label: 'Celsius', hex: '7E 07 0A BF 27 01 01 5F 7E', buttonId: 'unitCBtn' },
+  unitF: { label: 'Fahrenheit', hex: '7E 07 0A BF 27 01 00 58 7E', buttonId: 'unitFBtn' },
+  heatMode: { label: 'Teplotný režim', hex: '7E 07 0A BF 11 51 00 C8 7E' },
+  tempRange: { label: 'Teplotný rozsah', hex: '7E 07 0A BF 11 50 00 DD 7E' }
+};
+
+let mqttClient = null;
+let f2Enabled = false;
+let tempRangeMode = 'high';
+let heatModeState = null;
+let secretTaps = 0, secretTimer = null;
+let lastStatusAt = 0, pendingStatusTimer = null;
+let lowSetTemp = 10.0, highSetTemp = 38.0;
+let cfgTopic = '';
+let isApplyingConfig = false;
+let isUserChangingTemp = false;
+const CONTROL_NAMES = ['pump1', 'pump2', 'pump3', 'blower', 'light'];
+const controlStatus = {};
+
+function $(id) { return document.getElementById(id); }
+function exists(id) { return !!$(id); }
+function pad2(n) { return String(n).padStart(2, '0'); }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function setMessage(text) { if (exists('messageBox')) $('messageBox').textContent = text; }
+
+function showScreen(name) {
+  if (name !== 'setup') {
+    const setupNav = $('nav-setup');
+    if (setupNav && !setupNav.classList.contains('hidden')) setupNav.classList.add('hidden');
+    secretTaps = 0;
+  }
+  ['home', 'controls', 'settings', 'setup'].forEach(n => {
+    const screen = $(n + 'Screen');
+    const nav = $('nav-' + n);
+    if (screen) screen.classList.toggle('active', n === name);
+    if (nav) nav.classList.toggle('active', n === name);
+  });
+}
+
+function setConnectionState(state, text) {
+  const dot = $('statusDot');
+  if (!dot) return;
+  dot.classList.remove('online', 'waiting');
+  if (state === 'online') dot.classList.add('online');
+  if (state === 'waiting') dot.classList.add('waiting');
+
+  const statusChip = $('statusChip');
+  if (statusChip) statusChip.classList.toggle('online', state === 'online');
+
+  $('topStatusText').textContent = text;
+
+  const homeChip = $('homeCloudChip');
+  if (homeChip) {
+    homeChip.textContent = state === 'online' ? '☁ Online' : (state === 'waiting' ? '☁ Pripájam' : '☁ Offline');
+    homeChip.classList.toggle('online', state === 'online');
+  }
+}
+
+function handleSecretSetupTap() {
+  secretTaps++;
+  clearTimeout(secretTimer);
+  secretTimer = setTimeout(() => { secretTaps = 0; }, 4500);
+  if (secretTaps >= 10) {
+    secretTaps = 0;
+    const pin = prompt('Zadajte PIN pre servisné menu:');
+    if (pin === SECRET_PIN) {
+      const setupNav = $('nav-setup');
+      if (setupNav) setupNav.classList.remove('hidden');
+      showScreen('setup');
+      setMessage('Servisné menu otvorené – zadajte SN a heslo.');
+    } else setMessage('Nesprávny PIN.');
+  }
+}
+
+function autoFillTopics() {
+  const sn = $('mqttSn').value.trim();
+  if (!sn) return;
+  $('mqttUser').value = 'app_' + sn;
+  $('mqttRs').value = 'lechspa/' + sn + '/rs';
+  $('mqttTx').value = 'lechspa/' + sn + '/tx';
+  $('mqttCfg').value = 'lechspa/' + sn + '/cfg';
+  $('homeSn').textContent = sn;
+}
+
+function readMqttConfig() {
+  const sn = $('mqttSn').value.trim();
+  return {
+    broker: DEFAULT_BROKER_WS,
+    sn,
+    user: sn ? 'app_' + sn : '',
+    pass: $('mqttPass').value,
+    rs: sn ? 'lechspa/' + sn + '/rs' : '',
+    tx: sn ? 'lechspa/' + sn + '/tx' : '',
+    cfg: sn ? 'lechspa/' + sn + '/cfg' : ''
+  };
+}
+
+function saveMqttSetup() {
+  const cfg = readMqttConfig();
+  if (!cfg.sn) { setMessage('Chýba SN modulu.'); return null; }
+  if (!cfg.pass) { setMessage('Chýba app heslo.'); return null; }
+  $('homeSn').textContent = cfg.sn;
+  localStorage.setItem('platinumMqtt', JSON.stringify(cfg));
+  setMessage('MQTT nastavenie uložené.');
+  return cfg;
+}
+
+function loadMqttSetup() {
+  let cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem('platinumMqtt') || 'null'); } catch(e) {}
+  if (cfg && cfg.sn) {
+    $('mqttSn').value = cfg.sn;
+    $('mqttPass').value = cfg.pass || '';
+    $('mqttUser').value = cfg.user || ('app_' + cfg.sn);
+    $('mqttRs').value = cfg.rs || ('lechspa/' + cfg.sn + '/rs');
+    $('mqttTx').value = cfg.tx || ('lechspa/' + cfg.sn + '/tx');
+    $('mqttCfg').value = cfg.cfg || ('lechspa/' + cfg.sn + '/cfg');
+    $('homeSn').textContent = cfg.sn;
+    cfgTopic = cfg.cfg;
+  } else {
+    $('mqttSn').value = '';
+    $('mqttPass').value = '';
+    $('mqttUser').value = '';
+    $('mqttRs').value = '';
+    $('mqttTx').value = '';
+    $('mqttCfg').value = '';
+    $('homeSn').textContent = '--';
+    cfgTopic = '';
+  }
+}
+
+// Balboa CRC a packety
+function balboaCrc(body) {
+  let crc = 0x02;
+  for (const b of body) { crc ^= b; for (let i = 0; i < 8; i++) crc = (crc & 0x80) ? (((crc << 1) & 0xFF) ^ 0x07) : ((crc << 1) & 0xFF); }
+  return crc ^ 0x02;
+}
+function buildPacket(body) { return new Uint8Array([0x7E, ...body, balboaCrc(body), 0x7E]); }
+function publishBytes(bytes, label) {
+  if (!mqttClient || !mqttClient.connected) { setMessage('MQTT nie je pripojené.'); return false; }
+  const cfg = readMqttConfig();
+  if (!cfg.tx) { setMessage('Chýba command topic.'); return false; }
+  mqttClient.publish(cfg.tx, bytes, { qos: 0 });
+  setMessage('Odoslané: ' + label);
+  return true;
+}
+function publishHex(hex, label) { return publishBytes(parseHexToBytes(hex), label); }
+function sendCmd(name) {
+  const cmd = COMMANDS[name];
+  if (!cmd) { setMessage('Neznámy príkaz'); return; }
+  if (publishHex(cmd.hex, cmd.label)) flashCommandButton(cmd);
+}
+function flashCommandButton(cmd) {
+  if (cmd.buttonId && exists(cmd.buttonId)) { const btn = $(cmd.buttonId); btn.classList.add('waiting'); setTimeout(() => btn.classList.remove('waiting'), 1800); }
+  if (cmd.labelId && exists(cmd.labelId)) { const lbl = $(cmd.labelId); lbl.textContent = 'ČAKÁM...'; lbl.classList.add('state-waiting'); setTimeout(() => { if (lbl.textContent === 'ČAKÁM...') lbl.textContent = 'Čakám na stav'; lbl.classList.remove('state-waiting'); }, 2500); }
+}
+
+function updateTempSliderLabel() { $('settingsTempValue').textContent = parseFloat($('tempSlider').value || 0).toFixed(1) + '°C'; }
+function setTempRangeUi(mode) {
+  tempRangeMode = mode;
+  const slider = $('tempSlider');
+  if (tempRangeMode === 'low') {
+    slider.min = '10'; slider.max = '37';
+    $('tempMinLabel').textContent = '10'; $('tempMaxLabel').textContent = '37';
+    slider.value = clamp(lowSetTemp, 10, 37).toString();
+    $('tempRangeText').textContent = 'Nízky rozsah';
+  } else {
+    slider.min = '26.5'; slider.max = '40';
+    $('tempMinLabel').textContent = '26.5'; $('tempMaxLabel').textContent = '40';
+    slider.value = clamp(highSetTemp, 26.5, 40).toString();
+    $('tempRangeText').textContent = 'Vysoký rozsah';
+  }
+  updateTempSliderLabel();
+  $('rangeLowBtn').classList.toggle('active', tempRangeMode === 'low');
+  $('rangeHighBtn').classList.toggle('active', tempRangeMode === 'high');
+}
+function requestTempRange(mode) { if (tempRangeMode !== mode) sendCmd('tempRange'); else setMessage('Rozsah už je nastavený.'); }
+function onTempSliderChange() {
+  if (isApplyingConfig) return;
+  const newTemp = parseFloat($('tempSlider').value);
+  if (!isFinite(newTemp)) return;
+  if (tempRangeMode === 'low') lowSetTemp = newTemp; else highSetTemp = newTemp;
+  const tt = Math.round(newTemp * 2);
+  publishBytes(buildPacket([0x06, 0x0A, 0xBF, 0x20, tt]), 'Nastavenie teploty ' + newTemp.toFixed(1) + '°C');
+  saveConfigToMqtt();
+}
+function saveConfigToMqtt() {
+  if (!mqttClient || !mqttClient.connected) return;
+  const cfg = readMqttConfig();
+  if (!cfg.cfg) return;
+  const configPayload = {
+    lowSetTemp, highSetTemp, lastRange: tempRangeMode,
+    filters: {
+      f1Hour: selectInt('f1Hour'), f1Minute: selectInt('f1Minute'),
+      f1DurHour: selectInt('f1DurHour'), f1DurMinute: selectInt('f1DurMinute'),
+      f2Enabled, f2Hour: selectInt('f2Hour'), f2Minute: selectInt('f2Minute'),
+      f2DurHour: selectInt('f2DurHour'), f2DurMinute: selectInt('f2DurMinute')
+    },
+    updatedAt: Date.now()
+  };
+  mqttClient.publish(cfg.cfg, JSON.stringify(configPayload), { qos: 0, retain: true });
+}
+function applyConfigFromJson(config) {
+  if (!config) return;
+  isApplyingConfig = true;
+  try {
+    if (typeof config.lowSetTemp === 'number') lowSetTemp = config.lowSetTemp;
+    if (typeof config.highSetTemp === 'number') highSetTemp = config.highSetTemp;
+    if (config.lastRange === 'low' || config.lastRange === 'high') tempRangeMode = config.lastRange;
+    setTempRangeUi(tempRangeMode);
+    if (config.filters) {
+      const f = config.filters;
+      if (typeof f.f1Hour === 'number') $('f1Hour').value = f.f1Hour;
+      if (typeof f.f1Minute === 'number') $('f1Minute').value = f.f1Minute;
+      if (typeof f.f1DurHour === 'number') $('f1DurHour').value = f.f1DurHour;
+      if (typeof f.f1DurMinute === 'number') $('f1DurMinute').value = f.f1DurMinute;
+      if (typeof f.f2Enabled === 'boolean') setF2(f.f2Enabled);
+      if (typeof f.f2Hour === 'number') $('f2Hour').value = f.f2Hour;
+      if (typeof f.f2Minute === 'number') $('f2Minute').value = f.f2Minute;
+      if (typeof f.f2DurHour === 'number') $('f2DurHour').value = f.f2DurHour;
+      if (typeof f.f2DurMinute === 'number') $('f2DurMinute').value = f.f2DurMinute;
+    }
+    if (tempRangeMode === 'low') $('tempSlider').value = clamp(lowSetTemp, 10, 37).toString();
+    else $('tempSlider').value = clamp(highSetTemp, 26.5, 40).toString();
+    updateTempSliderLabel();
+  } finally { isApplyingConfig = false; }
+}
+
+function requestHeatMode(mode) {
+  const target = mode === 'rest' ? 'rest' : 'ready';
+  if (heatModeState === target) { setMessage('Režim už je nastavený.'); return; }
+  if (heatModeState === null) { setMessage('Počkajte na načítanie stavu z vírivky.'); return; }
+  sendCmd('heatMode');
+}
+function fillCurrentTime() { const d = new Date(); $('timeHour').value = String(d.getHours()); $('timeMinute').value = String(d.getMinutes()); }
+function saveSystemTime() { const hh = parseInt($('timeHour').value,10), mm = parseInt($('timeMinute').value,10); if (hh>=0&&hh<=23&&mm>=0&&mm<=59) publishBytes(buildPacket([0x07,0x0A,0xBF,0x21,0x80+hh,mm]), 'Nastavenie času'); else setMessage('Neplatný čas.'); }
+function setF2(on) { f2Enabled = !!on; $('f2off').classList.toggle('active', !f2Enabled); $('f2on').classList.toggle('active', f2Enabled); }
+function selectInt(id) { return parseInt($(id).value,10) || 0; }
+function saveFilters() {
+  const f1h=selectInt('f1Hour'), f1m=selectInt('f1Minute'), f1dh=selectInt('f1DurHour'), f1dm=selectInt('f1DurMinute');
+  const f2h=selectInt('f2Hour'), f2m=selectInt('f2Minute'), f2dh=selectInt('f2DurHour'), f2dm=selectInt('f2DurMinute');
+  const f2byte = (f2Enabled ? 0x80 : 0x00) | (f2h & 0x7F);
+  publishBytes(buildPacket([0x0D,0x0A,0xBF,0x23,f1h,f1m,f1dh,f1dm,f2byte,f2m,f2dh,f2dm]), 'Filtračné cykly');
+  saveConfigToMqtt();
+}
+
+// MQTT a spracovanie správ
+function connectMqtt() {
+  let cfg = saveMqttSetup();
+  if (!cfg) {
+    try { cfg = JSON.parse(localStorage.getItem('platinumMqtt') || 'null'); } catch(e) { cfg = null; }
+    if (cfg && cfg.sn) {
+      if (!cfg.broker) cfg.broker = DEFAULT_BROKER_WS;
+      if (!cfg.user) cfg.user = 'app_' + cfg.sn;
+      if (!cfg.rs) cfg.rs = 'lechspa/' + cfg.sn + '/rs';
+      if (!cfg.tx) cfg.tx = 'lechspa/' + cfg.sn + '/tx';
+      if (!cfg.cfg) cfg.cfg = 'lechspa/' + cfg.sn + '/cfg';
+    } else return;
+  }
+  cfg.broker = DEFAULT_BROKER_WS;
+  if (typeof mqtt === 'undefined') { setMessage('Chýba MQTT knižnica.'); return; }
+  if (mqttClient) { try { mqttClient.end(true); } catch(e) {} mqttClient = null; }
+  setConnectionState('waiting', 'Pripájam...');
+  setMessage('Pripájam MQTT: ' + cfg.broker);
+  mqttClient = mqtt.connect(cfg.broker, { clientId: 'platinum-' + cfg.sn + '-' + Math.random().toString(16).slice(2), username: cfg.user, password: cfg.pass, clean: true, keepalive: 30, connectTimeout: 9000, reconnectPeriod: 3000, protocolVersion: 4 });
+  mqttClient.on('connect', () => {
+    setConnectionState('online', 'MQTT online');
+    setMessage('Pripojené. Čakám na stav vírivky...');
+    setAllControlsWaiting();
+    mqttClient.subscribe(cfg.rs, { qos: 0 });
+    mqttClient.subscribe(cfg.cfg, { qos: 0 });
+    clearTimeout(pendingStatusTimer);
+    pendingStatusTimer = setTimeout(() => { if (Date.now() - lastStatusAt > 7000) setMessage('MQTT pripojené, ale neprichádza status frame.'); }, 7500);
+  });
+  mqttClient.on('reconnect', () => setConnectionState('waiting', 'Reconnect'));
+  mqttClient.on('close', () => { setConnectionState('offline', 'Odpojené'); if (Date.now() - lastStatusAt > 7000) setMessage('MQTT odpojené alebo broker nepovolil WebSocket cez ws://195.20.241.46:8083.'); });
+  mqttClient.on('offline', () => setConnectionState('offline', 'Offline'));
+  mqttClient.on('error', e => setMessage('MQTT chyba: ' + (e.message || e) + ' | Broker: ' + (cfg && cfg.broker ? cfg.broker : '')));
+  mqttClient.on('message', (topic, payload) => {
+    const bytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
+    if (topic === cfg.cfg) {
+      try { const config = JSON.parse(new TextDecoder().decode(bytes)); applyConfigFromJson(config); } catch(e) { console.warn(e); }
+      return;
+    }
+    handlePayload(bytes);
+  });
+}
+
+function parseHexToBytes(hex) {
+  const clean = String(hex).trim().replace(/[^0-9a-fA-F]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+  if (!clean) return new Uint8Array();
+  const parts = clean.split(' ');
+  return new Uint8Array(parts.map(x => parseInt(x,16)).filter(n=>Number.isFinite(n)));
+}
+function splitFrames(bytes) {
+  const frames = []; let buf = [];
+  for (const b of bytes) {
+    if (b === 0x7E) {
+      if (!buf.length) buf = [b];
+      else { buf.push(b); if (buf.length >= 3) frames.push(buf); buf = [0x7E]; }
+    } else if (buf.length) buf.push(b);
+  }
+  return frames;
+}
+function handlePayload(bytes) {
+  const frames = splitFrames(bytes);
+  if (!frames.length && bytes.length) parseStatusFrame(Array.from(bytes));
+  frames.forEach(parseStatusFrame);
+}
+function formatTemp(raw) { if (raw == null || raw === 0xFF || raw === 0xFE) return '--.-°C'; return (raw/2).toFixed(1)+'°C'; }
+function setHeatModeUi(modeByte) {
+  heatModeState = modeByte === 1 ? 'rest' : 'ready';
+  $('homeMode').textContent = heatModeState === 'rest' ? 'Dovolenka' : 'Pripravený';
+  $('heatReadyBtn').classList.toggle('active', heatModeState === 'ready');
+  $('heatRestBtn').classList.toggle('active', heatModeState === 'rest');
+}
+function setCircUi(active) {
+  $('homeCirc').textContent = active ? 'Aktívny' : 'Automatické';
+  $('lbl-circ').textContent = active ? 'AKTÍVNY' : 'AUTO';
+  $('lbl-circ').classList.toggle('state-on', active);
+  $('btn-circ').classList.toggle('on', active);
+  $('item-circ').classList.toggle('control-active', active);
+}
+function setControlUi(name, active, labelText) {
+  controlStatus[name] = !!active;
+  const cmd = COMMANDS[name];
+  if (!cmd) return;
+  const btn = cmd.buttonId ? $(cmd.buttonId) : null;
+  const lbl = cmd.labelId ? $(cmd.labelId) : null;
+  const item = $('item-'+name);
+  const text = labelText || (active ? 'AKTÍVNY' : 'NEAKTÍVNY');
+  if (btn) { btn.classList.toggle('on', !!active); btn.classList.toggle('off', !active); btn.classList.remove('waiting'); }
+  if (lbl) { lbl.textContent = text; lbl.classList.toggle('state-on', !!active); lbl.classList.remove('state-waiting'); }
+  if (item) item.classList.toggle('control-active', !!active);
+}
+function setAllControlsWaiting() {
+  CONTROL_NAMES.forEach(name => {
+    const cmd = COMMANDS[name];
+    if (!cmd) return;
+    const lbl = cmd.labelId ? $(cmd.labelId) : null;
+    const btn = cmd.buttonId ? $(cmd.buttonId) : null;
+    const item = $('item-'+name);
+    if (btn) { btn.classList.remove('on'); btn.classList.add('off'); }
+    if (lbl) { lbl.textContent = 'Čakám na stav'; lbl.classList.remove('state-on'); lbl.classList.add('state-waiting'); }
+    if (item) item.classList.remove('control-active');
+    controlStatus[name] = null;
+  });
+}
+function parseStatusFrame(frame) {
+  const b = Array.from(frame);
+  if (b.length < 28 || !(b[0]===0x7E && b[1]===0x20 && b[2]===0xFF && b[3]===0xAF && b[4]===0x13)) return;
+  lastStatusAt = Date.now();
+  const actualRaw = b[7], hour = b[8], minute = b[9], modeByte = b[10], flags = b[15]||0, setRaw = b[25];
+  const highRange = !!(flags & 0x04), circActive = !!(flags & 0x08);
+  const deviceByte = b[16]||0, auxByte = b[18]||0, lightByte1 = b[19]||0, lightByte2 = b[20]||0;
+  const pump1Active = !!(deviceByte & 0x03), pump2Active = !!(deviceByte & 0x0C), pump3Active = !!(deviceByte & 0x30);
+  const blowerActive = !!(auxByte & 0x0C), lightActive = !!(lightByte1 & 0x03) || !!(lightByte2 & 0x01);
+  
+  $('homeTemp').textContent = formatTemp(actualRaw);
+  $('homeSetTemp').textContent = formatTemp(setRaw);
+  $('settingsTempValue').textContent = formatTemp(setRaw);
+  $('homeTime').textContent = 'Čas: ' + pad2(hour)+':'+pad2(minute);
+  setHeatModeUi(modeByte);
+  $('homeRange').textContent = highRange ? 'Vysoký rozsah' : 'Nízky rozsah';
+  
+  // Aktualizácia UI podľa skutočného stavu z panela (nepreblikáva)
+  if (highRange !== (tempRangeMode === 'high')) { 
+    tempRangeMode = highRange ? 'high' : 'low'; 
+    setTempRangeUi(tempRangeMode); 
+  }
+  // Aktualizácia slidera a hodnôt podľa setRaw teploty (aby UI vždy ukazovalo reálnu hodnotu)
+  const setTempC = setRaw / 2;
+  if (tempRangeMode === 'low') lowSetTemp = setTempC;
+  else highSetTemp = setTempC;
+  if (!isApplyingConfig && !isUserChangingTemp) {
+    $('tempSlider').value = clamp(setTempC, parseFloat($('tempSlider').min), parseFloat($('tempSlider').max)).toString();
+    updateTempSliderLabel();
+  }
+  
+  setCircUi(circActive);
+  setControlUi('pump1', pump1Active); setControlUi('pump2', pump2Active); setControlUi('pump3', pump3Active);
+  setControlUi('blower', blowerActive); setControlUi('light', lightActive);
+  saveConfigToMqtt();
+}
+
+function populateSelect(id, start, end, selected, step=1) {
+  const sel = $(id);
+  sel.innerHTML = '';
+  for (let i=start; i<=end; i+=step) { const opt = document.createElement('option'); opt.value=String(i); opt.textContent=pad2(i); if(i===selected) opt.selected=true; sel.appendChild(opt); }
+}
+function initSelects() {
+  populateSelect('timeHour',0,23,new Date().getHours()); populateSelect('timeMinute',0,59,new Date().getMinutes());
+  populateSelect('f1Hour',0,23,14); populateSelect('f1Minute',0,59,15);
+  populateSelect('f1DurHour',0,23,8); populateSelect('f1DurMinute',0,59,0);
+  populateSelect('f2Hour',0,23,8); populateSelect('f2Minute',0,59,0);
+  populateSelect('f2DurHour',0,23,0); populateSelect('f2DurMinute',0,59,15);
+}
+
+window.addEventListener('load', () => { initSelects(); loadMqttSetup(); setTempRangeUi('high'); setF2(false); setAllControlsWaiting(); setConnectionState('waiting', 'Čaká na MQTT'); });
+window.addEventListener('focus', () => { if (mqttClient && !mqttClient.connected && $('mqttSn').value.trim()) connectMqtt(); });
+</script>
+</body>
+</html>
