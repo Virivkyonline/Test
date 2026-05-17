@@ -1905,18 +1905,19 @@
 'use strict';
 
 const DEFAULT_BROKER_WS = 'ws://195.20.241.46:8083';
+const API_CMD_URL = '/api/cmd';
 const SECRET_PIN = '780801';
 
 const COMMANDS = {
-  pump1: { label: 'Pumpa 1', hex: '7E 07 10 BF 11 04 00 6A 7E', buttonId: 'btn-pump1', labelId: 'lbl-pump1' },
-  pump2: { label: 'Pumpa 2', hex: '7E 07 10 BF 11 05 00 7F 7E', buttonId: 'btn-pump2', labelId: 'lbl-pump2' },
-  pump3: { label: 'Pumpa 3', hex: '7E 07 0A BF 11 06 00 AF 7E', buttonId: 'btn-pump3', labelId: 'lbl-pump3' },
-  blower: { label: 'Blower', hex: '7E 07 10 BF 11 0C 00 C2 7E', buttonId: 'btn-blower', labelId: 'lbl-blower' },
-  light: { label: 'Svetlo', hex: '7E 07 10 BF 11 91 00 CA 7E', buttonId: 'btn-light', labelId: 'lbl-light' },
-  unitC: { label: 'Celsius', hex: '7E 07 0A BF 27 01 01 5F 7E', buttonId: 'unitCBtn' },
-  unitF: { label: 'Fahrenheit', hex: '7E 07 0A BF 27 01 00 58 7E', buttonId: 'unitFBtn' },
-  heatMode: { label: 'Teplotný režim', hex: '7E 07 0A BF 11 51 00 C8 7E' },
-  tempRange: { label: 'Teplotný rozsah', hex: '7E 07 0A BF 11 50 00 DD 7E' }
+  pump1: { label: 'Pumpa 1', buttonId: 'btn-pump1', labelId: 'lbl-pump1' },
+  pump2: { label: 'Pumpa 2', buttonId: 'btn-pump2', labelId: 'lbl-pump2' },
+  pump3: { label: 'Pumpa 3', buttonId: 'btn-pump3', labelId: 'lbl-pump3' },
+  blower: { label: 'Blower', buttonId: 'btn-blower', labelId: 'lbl-blower' },
+  light: { label: 'Svetlo', buttonId: 'btn-light', labelId: 'lbl-light' },
+  unitC: { label: 'Celsius', buttonId: 'unitCBtn' },
+  unitF: { label: 'Fahrenheit', buttonId: 'unitFBtn' },
+  heatMode: { label: 'Teplotný režim' },
+  tempRange: { label: 'Teplotný rozsah' }
 };
 
 let mqttClient = null;
@@ -2044,26 +2045,43 @@ function loadMqttSetup() {
   }
 }
 
-// Balboa CRC a packety
-function balboaCrc(body) {
-  let crc = 0x02;
-  for (const b of body) { crc ^= b; for (let i = 0; i < 8; i++) crc = (crc & 0x80) ? (((crc << 1) & 0xFF) ^ 0x07) : ((crc << 1) & 0xFF); }
-  return crc ^ 0x02;
-}
-function buildPacket(body) { return new Uint8Array([0x7E, ...body, balboaCrc(body), 0x7E]); }
-function publishBytes(bytes, label) {
-  if (!mqttClient || !mqttClient.connected) { setMessage('MQTT nie je pripojené.'); return false; }
+// Príkazy neposiela prehliadač priamo cez MQTT.
+// Index volá iba serverové API. HEX príkazy sú skryté na VPS v /opt/platinum-cmd-api/server.js.
+async function sendApiCommand(payload, label) {
   const cfg = readMqttConfig();
-  if (!cfg.tx) { setMessage('Chýba command topic.'); return false; }
-  mqttClient.publish(cfg.tx, bytes, { qos: 0 });
-  setMessage('Odoslané: ' + label);
-  return true;
+  if (!cfg.sn) { setMessage('Chýba SN modulu.'); return false; }
+  if (!cfg.pass) { setMessage('Chýba app heslo.'); return false; }
+
+  const body = Object.assign({}, payload, { sn: cfg.sn, appPass: cfg.pass });
+  try {
+    setMessage('Odosielam cez server: ' + (label || payload.action || 'príkaz'));
+    const res = await fetch(API_CMD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    let data = null;
+    const text = await res.text();
+    try { data = text ? JSON.parse(text) : null; } catch(e) { data = { ok:false, error:text || 'Neplatná odpoveď servera.' }; }
+
+    if (!res.ok || !data || !data.ok) {
+      throw new Error((data && (data.error || data.detail)) || ('HTTP ' + res.status));
+    }
+
+    setMessage('Odoslané cez server: ' + (data.label || label || payload.action));
+    return true;
+  } catch (e) {
+    setMessage('Server/API chyba: ' + (e.message || e));
+    return false;
+  }
 }
-function publishHex(hex, label) { return publishBytes(parseHexToBytes(hex), label); }
-function sendCmd(name) {
+
+async function sendCmd(name) {
   const cmd = COMMANDS[name];
   if (!cmd) { setMessage('Neznámy príkaz'); return; }
-  if (publishHex(cmd.hex, cmd.label)) flashCommandButton(cmd);
+  const ok = await sendApiCommand({ action: name }, cmd.label);
+  if (ok) flashCommandButton(cmd);
 }
 function flashCommandButton(cmd) {
   if (cmd.buttonId && exists(cmd.buttonId)) { const btn = $(cmd.buttonId); btn.classList.add('waiting'); setTimeout(() => btn.classList.remove('waiting'), 1800); }
@@ -2090,14 +2108,13 @@ function setTempRangeUi(mode) {
   $('rangeHighBtn').classList.toggle('active', tempRangeMode === 'high');
 }
 function requestTempRange(mode) { if (tempRangeMode !== mode) sendCmd('tempRange'); else setMessage('Rozsah už je nastavený.'); }
-function onTempSliderChange() {
+async function onTempSliderChange() {
   if (isApplyingConfig) return;
   const newTemp = parseFloat($('tempSlider').value);
   if (!isFinite(newTemp)) return;
   if (tempRangeMode === 'low') lowSetTemp = newTemp; else highSetTemp = newTemp;
-  const tt = Math.round(newTemp * 2);
-  publishBytes(buildPacket([0x06, 0x0A, 0xBF, 0x20, tt]), 'Nastavenie teploty ' + newTemp.toFixed(1) + '°C');
-  saveConfigToMqtt();
+  const ok = await sendApiCommand({ action: 'setTemp', value: newTemp }, 'Nastavenie teploty ' + newTemp.toFixed(1) + '°C');
+  if (ok) saveConfigToMqtt();
 }
 function saveConfigToMqtt() {
   if (!mqttClient || !mqttClient.connected) return;
@@ -2148,15 +2165,23 @@ function requestHeatMode(mode) {
   sendCmd('heatMode');
 }
 function fillCurrentTime() { const d = new Date(); $('timeHour').value = String(d.getHours()); $('timeMinute').value = String(d.getMinutes()); }
-function saveSystemTime() { const hh = parseInt($('timeHour').value,10), mm = parseInt($('timeMinute').value,10); if (hh>=0&&hh<=23&&mm>=0&&mm<=59) publishBytes(buildPacket([0x07,0x0A,0xBF,0x21,0x80+hh,mm]), 'Nastavenie času'); else setMessage('Neplatný čas.'); }
+async function saveSystemTime() {
+  const hh = parseInt($('timeHour').value,10), mm = parseInt($('timeMinute').value,10);
+  if (hh>=0 && hh<=23 && mm>=0 && mm<=59) {
+    await sendApiCommand({ action: 'systemTime', hh, mm }, 'Nastavenie času');
+  } else setMessage('Neplatný čas.');
+}
 function setF2(on) { f2Enabled = !!on; $('f2off').classList.toggle('active', !f2Enabled); $('f2on').classList.toggle('active', f2Enabled); }
 function selectInt(id) { return parseInt($(id).value,10) || 0; }
-function saveFilters() {
+async function saveFilters() {
   const f1h=selectInt('f1Hour'), f1m=selectInt('f1Minute'), f1dh=selectInt('f1DurHour'), f1dm=selectInt('f1DurMinute');
   const f2h=selectInt('f2Hour'), f2m=selectInt('f2Minute'), f2dh=selectInt('f2DurHour'), f2dm=selectInt('f2DurMinute');
-  const f2byte = (f2Enabled ? 0x80 : 0x00) | (f2h & 0x7F);
-  publishBytes(buildPacket([0x0D,0x0A,0xBF,0x23,f1h,f1m,f1dh,f1dm,f2byte,f2m,f2dh,f2dm]), 'Filtračné cykly');
-  saveConfigToMqtt();
+  const ok = await sendApiCommand({
+    action: 'filters',
+    f1h, f1m, f1dh, f1dm,
+    f2en: !!f2Enabled, f2h, f2m, f2dh, f2dm
+  }, 'Filtračné cykly');
+  if (ok) saveConfigToMqtt();
 }
 
 // MQTT a spracovanie správ
